@@ -1,30 +1,85 @@
-"useClient";
+"use client";
 import { useToolKitContext } from "@/Context/ToolKitContext";
 import { MENU_ITEM_TYPE } from "@/constants";
-import { faSleigh } from "@fortawesome/free-solid-svg-icons";
+
 import React, { useRef, useEffect, useLayoutEffect } from "react";
 
 const Board = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const history = useRef<ImageData[]>([]);
+  const pointor = useRef(0);
   const shouldDrawRef = useRef(false);
-  const { menuItemClicked, pencilProperties } = useToolKitContext();
+  const {
+    actionMenuItem,
+    setActionMenuItem,
+    menuItemClicked,
+    eraserPropertise,
+    pencilProperties,
+  } = useToolKitContext();
+
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d")!;
+    if (actionMenuItem?.label === MENU_ITEM_TYPE.DOWNLOAD) {
+      const URL = canvas.toDataURL();
+      const anchor = document.createElement("a");
+      anchor.href = URL;
+      anchor.download = "Sketch.jpg";
+      anchor.click();
+      console.log(URL);
+      setActionMenuItem(null);
+    }
+    if (actionMenuItem?.label === MENU_ITEM_TYPE.UNDO) {
+      if (pointor.current - 1 >= 0) {
+        const imageData = history.current[pointor.current - 1];
+        imageData && context.putImageData(imageData, 0, 0);
+        pointor.current = pointor.current - 1;
+      } else {
+        context.fillStyle = "white";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    if (actionMenuItem?.label === MENU_ITEM_TYPE.REDU) {
+      if (pointor.current < history.current.length - 1) {
+        const imageData = history.current[pointor.current + 1];
+        imageData && context.putImageData(imageData, 0, 0);
+        pointor.current = pointor.current + 1;
+      }
+    }
+    console.log(history.current, pointor);
+    setActionMenuItem(null);
+  }, [actionMenuItem, setActionMenuItem]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d")!;
     const changeConfig = () => {
-      context.strokeStyle = pencilProperties.pencilColor;
-      context.lineWidth = pencilProperties.pencilSize;
+      context.strokeStyle =
+        menuItemClicked.label === MENU_ITEM_TYPE.PENCIL
+          ? pencilProperties.pencilColor
+          : eraserPropertise.eraserColor;
+      context.lineWidth =
+        menuItemClicked.label === MENU_ITEM_TYPE.PENCIL
+          ? pencilProperties.pencilSize
+          : eraserPropertise.eraserSize;
     };
     changeConfig();
-  }, [pencilProperties]);
+  }, [menuItemClicked, pencilProperties, eraserPropertise]);
 
   useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d")!;
     canvas.width = window.innerWidth;
     canvas.height = window.innerWidth;
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
     const beginPath = (x: number, y: number) => {
       context?.beginPath();
       context?.moveTo(x, y);
@@ -42,6 +97,9 @@ const Board = () => {
       drawLine(e.clientX, e.clientY);
     };
     const handleMouseUp = (e: MouseEvent) => {
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      history.current.push(imageData);
+      pointor.current = history.current.length - 1;
       shouldDrawRef.current = false;
     };
     canvas.addEventListener("mousedown", handleMouseDown);
@@ -53,7 +111,7 @@ const Board = () => {
       canvas.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
-  return <canvas ref={canvasRef}></canvas>;
+  return <canvas className="block" ref={canvasRef}></canvas>;
 };
 
 export default Board;

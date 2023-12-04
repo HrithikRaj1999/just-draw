@@ -26,4 +26,5 @@ export const MENU_ITEM_TYPE = {
   ERASER: "ERASER",
   UNDO: "UNDO",
   REDU: "REDU",
+  DOWNLOAD:"DOWNLOAD"
 };

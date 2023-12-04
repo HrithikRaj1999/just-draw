@@ -56,7 +56,7 @@ const ToolBox = () => {
               : eraserPropertise.eraserSize
           }
           min={1}
-          max={10}
+          max={menuItemClicked?.label === MENU_ITEM_TYPE.PENCIL ? 10 : 100}
           step={1}
           onChange={handleSize}
         />
