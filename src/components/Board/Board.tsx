@@ -1,56 +1,58 @@
+"useClient";
 import { useToolKitContext } from "@/Context/ToolKitContext";
 import { MENU_ITEM_TYPE } from "@/constants";
 import { faSleigh } from "@fortawesome/free-solid-svg-icons";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useLayoutEffect } from "react";
 
 const Board = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const shouldDrawRef = useRef(false);
   const { menuItemClicked, pencilProperties } = useToolKitContext();
-  const handleMouseDown = (
-    e: MouseEvent,
-    context: CanvasRenderingContext2D | null
-  ) => {
-    shouldDrawRef.current = true;
-    context?.moveTo(e.clientX, e.clientY);
-  };
-  const handleMouseMove = (
-    e: MouseEvent,
-    context: CanvasRenderingContext2D | null
-  ) => {
-    if (!shouldDrawRef.current) return;
-    context?.lineTo(e.clientX, e.clientY);
-    context?.stroke();
-  };
-  const handleMouseUp = (
-    e: MouseEvent,
-    context: CanvasRenderingContext2D | null
-  ) => {
-    shouldDrawRef.current = false;
-  };
   useEffect(() => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d")!;
-    context.strokeStyle = pencilProperties.pencilColor;
-    context.lineWidth = pencilProperties.pencilSize;
-    console.log(pencilProperties.pencilColor, pencilProperties.pencilSize,context.strokeStyle,context.lineWidth)
+    const changeConfig = () => {
+      context.strokeStyle = pencilProperties.pencilColor;
+      context.lineWidth = pencilProperties.pencilSize;
+    };
+    changeConfig();
+  }, [pencilProperties]);
+
+  useLayoutEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerWidth;
-
-    canvas.addEventListener("mousedown", (e) => handleMouseDown(e, context));
-    canvas.addEventListener("mousemove", (e) => handleMouseMove(e, context));
-    canvas.addEventListener("mouseup", (e) => handleMouseUp(e, context));
-    return () => {
-      canvas.removeEventListener("mousedown", (e) =>
-        handleMouseDown(e, context)
-      );
-      canvas.removeEventListener("mousemove", (e) =>
-        handleMouseMove(e, context)
-      );
-      canvas.removeEventListener("mouseup", (e) => handleMouseUp(e, context));
+    const beginPath = (x: number, y: number) => {
+      context?.beginPath();
+      context?.moveTo(x, y);
     };
-  }, [canvasRef, pencilProperties.pencilColor, pencilProperties.pencilSize]);
+    const drawLine = (x: number, y: number) => {
+      context?.lineTo(x, y);
+      context?.stroke();
+    };
+    const handleMouseDown = (e: MouseEvent) => {
+      shouldDrawRef.current = true;
+      beginPath(e.clientX, e.clientY);
+    };
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!shouldDrawRef.current) return;
+      drawLine(e.clientX, e.clientY);
+    };
+    const handleMouseUp = (e: MouseEvent) => {
+      shouldDrawRef.current = false;
+    };
+    canvas.addEventListener("mousedown", handleMouseDown);
+    canvas.addEventListener("mousemove", handleMouseMove);
+    canvas.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      canvas.removeEventListener("mousedown", handleMouseDown);
+      canvas.removeEventListener("mousemove", handleMouseMove);
+      canvas.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
   return <canvas ref={canvasRef}></canvas>;
 };
 
