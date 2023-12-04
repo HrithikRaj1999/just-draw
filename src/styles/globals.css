@@ -26,5 +26,5 @@
   @apply absolute grid gap-2 p-3 border;
 }
 .color {
-  @apply flex w-[30px] h-[15px] md:h-[20px];
+  @apply flex w-[30px] h-[15px] md:h-[20px] hover:cursor-pointer;
 }

@@ -10,9 +10,12 @@ const Colors = (props: ColorsPropsType) => {
   const { color } = props;
   return (
     <div
+      onMouseDown={(e) => e.stopPropagation()}
       className={cx(
         "color",
-        pencilProperties.pencilColor === color ? "border-2 border-b-zinc-200 shadow-2xl" : null
+        pencilProperties.pencilColor === color
+          ? "border-2 border-b-zinc-200 shadow-2xl"
+          : null
       )}
       style={{ backgroundColor: color }}
       onClick={() =>

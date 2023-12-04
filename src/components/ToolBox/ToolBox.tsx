@@ -1,5 +1,5 @@
 import { COLOR_LIST, MENU_ITEMS, MENU_ITEM_TYPE } from "@/constants";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Colors from "./Colors";
 import { useToolKitContext } from "@/Context/ToolKitContext";
 import cx from "classnames";
@@ -37,6 +37,7 @@ const ToolBox = () => {
   } = useToolKitContext();
 
   const handleSize = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
     if (menuItemClicked.label === MENU_ITEM_TYPE.PENCIL) {
       setPencilProperties((prev) => {
         return {
@@ -54,7 +55,14 @@ const ToolBox = () => {
       });
     }
   };
-
+  useLayoutEffect(() => {
+    setPosition((prev) => {
+      return JSON.parse(localStorage.getItem("tool-box-position") ?? "");
+    });
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("tool-box-position", JSON.stringify(position));
+  }, [position]);
   return (
     <div
       style={{
@@ -79,7 +87,7 @@ const ToolBox = () => {
           </div>
         </div>
       ) : null}
-      <div className="range-container">
+      <div className="range-container" onMouseDown={(e) => e.stopPropagation()}>
         <h4>{menuItemClicked.name} size</h4>
         <input
           className="size-range"
@@ -90,7 +98,7 @@ const ToolBox = () => {
               : eraserPropertise.eraserSize
           }
           min={1}
-          max={menuItemClicked?.label === MENU_ITEM_TYPE.PENCIL ? 10 : 100}
+          max={50}
           step={1}
           onChange={handleSize}
         />

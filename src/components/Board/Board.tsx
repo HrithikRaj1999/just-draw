@@ -76,7 +76,7 @@ const Board = () => {
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d")!;
     canvas.width = window.innerWidth;
-    canvas.height = window.innerWidth;
+    canvas.height = window.innerHeight;
     context.fillStyle = "#fefdfa";
     context.fillRect(0, 0, canvas.width, canvas.height);
 

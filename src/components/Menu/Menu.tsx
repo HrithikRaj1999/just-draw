@@ -2,9 +2,8 @@ import { MenuType, useToolKitContext } from "@/Context/ToolKitContext";
 import { MENU_ITEMS } from "@/constants";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import cx from "classnames";
-import { useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 const Menu = () => {
-  
   const { menuItemClicked, setActionMenuItem, setMenuItemClicked } =
     useToolKitContext();
   const handleMenuItemClicked = (item: MenuType) => {
@@ -12,7 +11,7 @@ const Menu = () => {
     else setActionMenuItem(item);
   };
   const [isDragging, setIsDragging] = useState(false);
-  const [position, setPosition] = useState({ x: 600, y:0 });
+  const [position, setPosition] = useState({x:0,y:0});
   const ref = useRef<{ offsetX: number; offsetY: number } | null>(null);
 
   const onMouseDown = (e: { clientX: number; clientY: number }) => {
@@ -36,6 +35,14 @@ const Menu = () => {
       });
     }
   };
+  useLayoutEffect(() => {
+    setPosition((prev) => {
+      return JSON.parse(localStorage.getItem("position") ?? "");
+    });
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("position", JSON.stringify(position));
+  }, [position]);
   return (
     <div
       onMouseDown={onMouseDown}
