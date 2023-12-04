@@ -19,7 +19,7 @@ interface pencilPropertiesType {
 }
 interface EraserPropertiesType {
   eraserSize: number;
-  eraserColor: "white";
+  eraserColor: "#fefdfa";
 }
 interface ToolKitContextType {
   menuItemClicked: MenuType;
@@ -42,7 +42,7 @@ export const ToolKitContextProvider = ({ children }: ToolKitContextProps) => {
   const [pencilProperties, setPencilProperties] =
     useState<pencilPropertiesType>({ pencilSize: 3, pencilColor: "black" });
   const [eraserPropertise, setEraserPropertise] =
-    useState<EraserPropertiesType>({ eraserSize: 3, eraserColor: "white" });
+    useState<EraserPropertiesType>({ eraserSize: 3, eraserColor: "#fefdfa" });
   return (
     <ToolKitContext.Provider
       value={{

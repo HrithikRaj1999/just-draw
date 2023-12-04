@@ -3,29 +3,28 @@
 @tailwind utilities;
 
 .menuContainer {
-  @apply absolute px-5 py-1 flex justify-between left-1/2 top-10 rounded-md -translate-x-28 ;
+  @apply absolute px-5 py-1 w-[200px] flex justify-between  rounded-md ;
 }
 .iconWrapper {
-  @apply  relative flex justify-between   p-3 rounded-lg shadow-sm border
+  @apply relative flex justify-between   p-3 rounded-lg shadow-sm border;
 }
 .icon {
   @apply cursor-pointer hover:shadow-sm  rounded-lg hover:bg-slate-200 gap-2 mx-1 p-2;
 }
 
-.color-box{
-  @apply border flex flex-1 p-2 gap-2 w-[150px] md:w-[200px] 
+.color-box {
+  @apply border flex flex-1 p-2 gap-2 w-[150px] md:w-[200px];
 }
-.size-range{
-  @apply w-[150px] md:w-[200px]
+.size-range {
+  @apply w-[150px] md:w-[200px];
 }
 
-.stroke-color-selector{
-  @apply grid gap-2
+.stroke-color-selector {
+  @apply grid gap-2;
 }
-.tool-container{
-  @apply absolute grid gap-2 p-3 border   left-4 top-32 
+.tool-container {
+  @apply absolute grid gap-2 p-3 border;
 }
-.color{
-  @apply flex w-[30px] h-[15px] md:h-[20px]
-
+.color {
+  @apply flex w-[30px] h-[15px] md:h-[20px];
 }

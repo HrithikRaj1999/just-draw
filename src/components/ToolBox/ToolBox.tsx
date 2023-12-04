@@ -1,17 +1,41 @@
 import { COLOR_LIST, MENU_ITEMS, MENU_ITEM_TYPE } from "@/constants";
-import React from "react";
+import React, { useRef, useState } from "react";
 import Colors from "./Colors";
 import { useToolKitContext } from "@/Context/ToolKitContext";
-
+import cx from "classnames";
 const ToolBox = () => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const ref = useRef<{ offsetX: number; offsetY: number } | null>(null);
+  const onMouseDown = (e: { clientX: number; clientY: number }) => {
+    setIsDragging(true);
+    ref.current = {
+      offsetX: e.clientX - position.x,
+      offsetY: e.clientY - position.y,
+    };
+  };
+
+  const onMouseUp = () => {
+    setIsDragging(false);
+    ref.current = null;
+  };
+
+  const onMouseMove = (e: { clientX: number; clientY: number }) => {
+    if (isDragging && ref.current) {
+      setPosition({
+        x: e.clientX - ref.current.offsetX,
+        y: e.clientY - ref.current.offsetY,
+      });
+    }
+  };
   const {
     menuItemClicked,
-    actionMenuItem,
     eraserPropertise,
     pencilProperties,
     setPencilProperties,
     setEraserPropertise,
   } = useToolKitContext();
+
   const handleSize = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (menuItemClicked.label === MENU_ITEM_TYPE.PENCIL) {
       setPencilProperties((prev) => {
@@ -32,7 +56,17 @@ const ToolBox = () => {
   };
 
   return (
-    <div className="tool-container">
+    <div
+      style={{
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        cursor: isDragging ? "grabbing" : "grab",
+      }}
+      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onMouseMove={onMouseMove}
+      className={"tool-container"}
+    >
       {menuItemClicked?.label === MENU_ITEM_TYPE.PENCIL ? (
         <div className="stroke-color-selector">
           <h4 className="stroke-color">

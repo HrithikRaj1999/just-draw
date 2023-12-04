@@ -37,7 +37,7 @@ const Board = () => {
         imageData && context.putImageData(imageData, 0, 0);
         pointor.current = pointor.current - 1;
       } else {
-        context.fillStyle = "white";
+        context.fillStyle = "#fefdfa";
         context.fillRect(0, 0, canvas.width, canvas.height);
       }
     }
@@ -77,7 +77,7 @@ const Board = () => {
     const context = canvas.getContext("2d")!;
     canvas.width = window.innerWidth;
     canvas.height = window.innerWidth;
-    context.fillStyle = "white";
+    context.fillStyle = "#fefdfa";
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     const beginPath = (x: number, y: number) => {
