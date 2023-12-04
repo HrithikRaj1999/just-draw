@@ -11,3 +11,17 @@
 .icon {
   @apply cursor-pointer hover:shadow-sm  rounded-lg hover:bg-slate-200 p-2;
 }
+
+.color-box{
+  @apply border border-black p-2  flex flex-1 gap-2 w-[150px] md:w-[200px] 
+}
+.size-range{
+  @apply w-[150px] md:w-[200px]
+}
+
+.stroke-color-selector{
+  @apply grid gap-2 shadow-sm
+}
+.tool-container{
+  @apply absolute grid gap-2 p-3 border border-black  left-4 top-32 
+}
