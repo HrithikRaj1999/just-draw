@@ -9,7 +9,7 @@
   @apply  relative flex justify-between   p-3 rounded-lg shadow-sm border
 }
 .icon {
-  @apply cursor-pointer hover:shadow-sm  rounded-lg hover:bg-slate-200 p-2;
+  @apply cursor-pointer hover:shadow-sm  rounded-lg hover:bg-slate-200 gap-2 mx-1 p-2;
 }
 
 .color-box{

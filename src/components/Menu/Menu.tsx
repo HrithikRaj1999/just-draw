@@ -1,9 +1,9 @@
 import { MenuType, useToolKitContext } from "@/Context/ToolKitContext";
 import { MENU_ITEMS } from "@/constants";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-
+import cx from "classnames";
 const Menu = () => {
-  const { setActionMenuItem, setMenuItemClicked } = useToolKitContext();
+  const { menuItemClicked,setActionMenuItem, setMenuItemClicked } = useToolKitContext();
   const handleMenuItemClicked = (item: MenuType) => {
     if (item.type === "item") setMenuItemClicked(item);
     else setActionMenuItem(item);
@@ -15,7 +15,7 @@ const Menu = () => {
           <FontAwesomeIcon
             key={index}
             icon={item.icon}
-            className="icon"
+            className={cx("icon",menuItemClicked.label===item.label?'border bg-slate-100':'')}
             onClick={() => handleMenuItemClicked(item)}
           />
         ))}
