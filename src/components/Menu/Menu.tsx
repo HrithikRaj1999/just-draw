@@ -1,21 +1,24 @@
+import { MenuType, useToolKitContext } from "@/Context/ToolKitContext";
+import { MENU_ITEMS } from "@/constants";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faPencil,
-  faEraser,
-  faRotateLeft,
-} from "@fortawesome/free-solid-svg-icons";
-import { faRotateRight } from "@fortawesome/free-solid-svg-icons/faRotateRight";
-import { faFileArrowDown } from "@fortawesome/free-solid-svg-icons/faFileArrowDown";
 
 const Menu = () => {
+  const { setActionMenuItem, setMenuItemClicked } = useToolKitContext();
+  const handleMenuItemClicked = (item: MenuType) => {
+    if (item.type === "item") setMenuItemClicked(item);
+    else setActionMenuItem(item);
+  };
   return (
     <div className="menuContainer">
       <div className="iconWrapper">
-        <FontAwesomeIcon icon={faPencil} className="icon" />
-        <FontAwesomeIcon icon={faEraser} className="icon" />
-        <FontAwesomeIcon icon={faRotateLeft} className="icon" />
-        <FontAwesomeIcon icon={faRotateRight} className="icon" />
-        <FontAwesomeIcon icon={faFileArrowDown} className="icon" />
+        {MENU_ITEMS.map((item, index) => (
+          <FontAwesomeIcon
+            key={index}
+            icon={item.icon}
+            className="icon"
+            onClick={() => handleMenuItemClicked(item)}
+          />
+        ))}
       </div>
     </div>
   );

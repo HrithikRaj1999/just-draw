@@ -3,25 +3,29 @@
 @tailwind utilities;
 
 .menuContainer {
-  @apply flex justify-center items-center mt-4;
+  @apply absolute px-5 py-1 flex justify-between left-1/2 top-10 rounded-md -translate-x-28 ;
 }
 .iconWrapper {
-  @apply sticky flex justify-between bg-slate-50 sm:w-1/4 md:w-1/3 p-3 rounded-lg shadow-sm border border-black;
+  @apply  relative flex justify-between   p-3 rounded-lg shadow-sm border
 }
 .icon {
   @apply cursor-pointer hover:shadow-sm  rounded-lg hover:bg-slate-200 p-2;
 }
 
 .color-box{
-  @apply border border-black p-2  flex flex-1 gap-2 w-[150px] md:w-[200px] 
+  @apply border flex flex-1 p-2 gap-2 w-[150px] md:w-[200px] 
 }
 .size-range{
   @apply w-[150px] md:w-[200px]
 }
 
 .stroke-color-selector{
-  @apply grid gap-2 shadow-sm
+  @apply grid gap-2
 }
 .tool-container{
-  @apply absolute grid gap-2 p-3 border border-black  left-4 top-32 
+  @apply absolute grid gap-2 p-3 border   left-4 top-32 
+}
+.color{
+  @apply flex w-[30px] h-[15px] md:h-[20px]
+
 }

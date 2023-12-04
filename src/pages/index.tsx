@@ -1,11 +1,14 @@
+import { ToolKitContextProvider } from "@/Context/ToolKitContext";
+import Board from "@/components/Board/Board";
 import Menu from "@/components/Menu/Menu";
 import ToolBox from "@/components/ToolBox/ToolBox";
 
 export default function Home() {
   return (
-    <div >
+    <ToolKitContextProvider>
+      <Board />
       <Menu />
-      <ToolBox/>
-    </div>
+      <ToolBox />
+    </ToolKitContextProvider>
   );
 }
