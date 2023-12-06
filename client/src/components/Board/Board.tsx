@@ -38,7 +38,6 @@ const Board = () => {
           context.fillStyle = "#fefdfa";
           context.fillRect(0, 0, canvas.width, canvas.height);
         }
-        
       }
       if (actionMenuItem?.label === MENU_ITEM_TYPE.REDU) {
         if (pointor.current < history.current.length - 1) {
@@ -46,7 +45,6 @@ const Board = () => {
           imageData && context.putImageData(imageData, 0, 0);
           pointor.current = pointor.current + 1;
         }
-       
       }
     }
   };
@@ -82,28 +80,48 @@ const Board = () => {
 
     socket.emit("client-ready");
     const canvas = canvasRef.current;
+    const getPixelRatio = () => window.devicePixelRatio || 1;
+    const pixelRatio = getPixelRatio();
+    canvas.width = window.innerWidth * pixelRatio;
+    canvas.height = window.innerHeight * pixelRatio;
     const context = canvas.getContext("2d")!;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    context.scale(pixelRatio, pixelRatio);
     context.fillStyle = "#fefdfa";
     context.fillRect(0, 0, canvas.width, canvas.height);
+
+    let lastX:number, lastY:number;
+    const drawBezierCurve = (prevX:number, prevY:number, currX:number, currY:number) => {
+      context.beginPath();
+      context.moveTo(prevX, prevY);
+      context.quadraticCurveTo(prevX, prevY, currX, currY);
+      context.stroke();
+      context.closePath();
+    };
+
     const beginPath = (x: number, y: number) => {
       context?.beginPath();
       context?.moveTo(x, y);
     };
     const drawLine = (x: number, y: number) => {
-      context?.lineTo(x, y);
-      context?.stroke();
+      context.lineTo(x, y);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(x, y);
     };
     const handleMouseDown = (e: MouseEvent) => {
       shouldDrawRef.current = true;
       beginPath(e.clientX, e.clientY);
+      lastX = e.clientX;
+      lastY = e.clientY;
       socket.emit("beginPath", { x: e.clientX, y: e.clientY });
     };
     const handleMouseMove = (e: MouseEvent) => {
       if (!shouldDrawRef.current) return;
-      drawLine(e.clientX, e.clientY);
+      drawBezierCurve(lastX, lastY, e.clientX, e.clientY);
       socket.emit("drawLine", { x: e.clientX, y: e.clientY });
+
+      lastX = e.clientX;
+      lastY = e.clientY;
     };
     const setMouseUp = () => {
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -112,7 +130,7 @@ const Board = () => {
       shouldDrawRef.current = false;
     };
     const handleMouseUp = (e: MouseEvent) => {
-      setMouseUp()
+      setMouseUp();
       socket.emit("setMouseUp");
     };
     const handleBeginPath = (path: { x: number; y: number }) => {
@@ -129,7 +147,7 @@ const Board = () => {
     socket.on("drawLine", handleDrawPath);
     socket.on("handleAction", handleAction);
     socket.on("setMouseUp", setMouseUp);
-    
+
     socket.on("get-canvas-state", () => {
       if (!canvasRef.current?.toDataURL()) return null;
       socket.emit("canvas-state", canvasRef.current.toDataURL());
