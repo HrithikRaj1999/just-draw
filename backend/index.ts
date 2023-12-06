@@ -14,6 +14,12 @@ const io = new Server(httpServer, {
 });
 io.on("connection", (socket) => {
   console.log("Server Connected Successfully",);
+  socket.on('client-ready',()=>{
+    socket.broadcast.emit('get-canvas-state')
+  })
+  socket.on('canvas-state',(state)=>{
+    socket.broadcast.emit('canvas-state-from-server',state)
+  })
   socket.on("beginPath", (args) => {
     socket.broadcast.emit("beginPath", args);
   });
