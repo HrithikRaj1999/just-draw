@@ -1,9 +1,11 @@
+import { useSocket } from "@/Context/SocketContext";
 import { MenuType, useToolKitContext } from "@/Context/ToolKitContext";
 import { MENU_ITEMS } from "@/constants";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import cx from "classnames";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 const Menu = () => {
+  const { socket } = useSocket();
   const { menuItemClicked, setActionMenuItem, setMenuItemClicked } =
     useToolKitContext();
   const handleMenuItemClicked = (item: MenuType) => {
@@ -11,15 +13,20 @@ const Menu = () => {
     else setActionMenuItem(item);
   };
   const [isDragging, setIsDragging] = useState(false);
-  const [position, setPosition] = useState({x:0,y:0});
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const ref = useRef<{ offsetX: number; offsetY: number } | null>(null);
 
   const onMouseDown = (e: { clientX: number; clientY: number }) => {
+   
     setIsDragging(true);
     ref.current = {
       offsetX: e.clientX - position.x,
       offsetY: e.clientY - position.y,
     };
+    socket.emit("setMenuPosition", {
+      x: e.clientX - ref.current.offsetX,
+      y: e.clientY - ref.current.offsetY,
+    });
   };
 
   const onMouseUp = () => {
@@ -28,8 +35,13 @@ const Menu = () => {
   };
 
   const onMouseMove = (e: { clientX: number; clientY: number }) => {
+    console.log("on MouseDrag rendered")
     if (isDragging && ref.current) {
       setPosition({
+        x: e.clientX - ref.current.offsetX,
+        y: e.clientY - ref.current.offsetY,
+      });
+      socket.emit("setMenuPosition", {
         x: e.clientX - ref.current.offsetX,
         y: e.clientY - ref.current.offsetY,
       });
@@ -43,6 +55,23 @@ const Menu = () => {
   useEffect(() => {
     localStorage.setItem("position", JSON.stringify(position));
   }, [position]);
+  // Socket event handlers
+  useEffect(() => {
+    const setMenuPosition = () => {
+      const pos = localStorage.getItem("position");
+      setPosition(() => {
+        if (pos) return JSON.parse(pos);
+        else return { x: 0, y: 0 };
+      });
+    };
+
+    socket.on("setMenuPosition", setMenuPosition);
+
+    // Cleanup
+    return () => {
+      socket.off("setMenuPosition", setMenuPosition);
+    };
+  });
   return (
     <div
       onMouseDown={onMouseDown}

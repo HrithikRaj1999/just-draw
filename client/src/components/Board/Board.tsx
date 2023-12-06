@@ -1,10 +1,11 @@
 "use client";
+import { useSocket } from "@/Context/SocketContext";
 import { useToolKitContext } from "@/Context/ToolKitContext";
 import { MENU_ITEM_TYPE } from "@/constants";
-
 import React, { useRef, useEffect, useLayoutEffect } from "react";
 
 const Board = () => {
+  const { socket } = useSocket();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const history = useRef<ImageData[]>([]);
   const pointor = useRef(0);
@@ -20,6 +21,7 @@ const Board = () => {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!canvasRef.current) return;
+
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d")!;
     if (actionMenuItem?.label === MENU_ITEM_TYPE.DOWNLOAD) {
@@ -72,6 +74,7 @@ const Board = () => {
   useLayoutEffect(() => {
     if (typeof window === "undefined") return;
     if (!canvasRef.current) return;
+
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d")!;
     canvas.width = window.innerWidth;
@@ -90,25 +93,44 @@ const Board = () => {
     const handleMouseDown = (e: MouseEvent) => {
       shouldDrawRef.current = true;
       beginPath(e.clientX, e.clientY);
+      socket.emit("beginPath", { x: e.clientX, y: e.clientY });
+      
     };
     const handleMouseMove = (e: MouseEvent) => {
       if (!shouldDrawRef.current) return;
       drawLine(e.clientX, e.clientY);
+      socket.emit("drawLine", { x: e.clientX, y: e.clientY });
+    
     };
     const handleMouseUp = (e: MouseEvent) => {
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       history.current.push(imageData);
       pointor.current = history.current.length - 1;
       shouldDrawRef.current = false;
+    
+    };
+    const handleBeginPath = (path: { x: number; y: number }) => {
+      beginPath(path.x, path.y);
+    };
+    const handleDrawPath = (path: { x: number; y: number }) => {
+      drawLine(path.x, path.y);
+    };
+    const handleRefresh = () => {
+      console.log("Refresjed");
+      context.clearRect(0, 0, canvas.width, canvas.height);
     };
     canvas.addEventListener("mousedown", handleMouseDown);
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseup", handleMouseUp);
-    
+    socket.on("beginPath", handleBeginPath);
+    socket.on("drawLine", handleDrawPath);
     return () => {
       canvas.removeEventListener("mousedown", handleMouseDown);
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseup", handleMouseUp);
+      socket.off("beginPath", handleBeginPath);
+      socket.off("drawLine", handleDrawPath);
+    
     };
   }, []);
   return <canvas className="block" ref={canvasRef}></canvas>;
