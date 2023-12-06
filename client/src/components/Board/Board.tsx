@@ -48,7 +48,6 @@ const Board = () => {
         pointor.current = pointor.current + 1;
       }
     }
-    console.log(history.current, pointor);
     setActionMenuItem(null);
   }, [actionMenuItem, setActionMenuItem]);
 
@@ -105,6 +104,7 @@ const Board = () => {
     canvas.addEventListener("mousedown", handleMouseDown);
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseup", handleMouseUp);
+    
     return () => {
       canvas.removeEventListener("mousedown", handleMouseDown);
       canvas.removeEventListener("mousemove", handleMouseMove);
