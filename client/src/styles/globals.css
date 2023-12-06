@@ -13,7 +13,7 @@
 }
 
 .color-box {
-  @apply border flex flex-1 p-2 gap-2 w-[150px] md:w-[200px];
+  @apply border flex flex-1 p-2 gap-2 ;
 }
 .size-range {
   @apply w-[150px] md:w-[200px];
@@ -23,8 +23,8 @@
   @apply grid gap-2;
 }
 .tool-container {
-  @apply absolute grid gap-2 p-3 border;
+  @apply absolute grid gap-1 p-3 border;
 }
 .color {
-  @apply flex w-[30px] h-[15px] md:h-[20px] hover:cursor-pointer;
+  @apply flex w-8 h-8 hover:cursor-pointer;
 }

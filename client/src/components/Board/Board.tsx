@@ -17,39 +17,44 @@ const Board = () => {
     eraserPropertise,
     pencilProperties,
   } = useToolKitContext();
-
+  const handleAction = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const context = canvas.getContext("2d")!;
+      if (actionMenuItem?.label === MENU_ITEM_TYPE.DOWNLOAD) {
+        const URL = canvas.toDataURL();
+        const anchor = document.createElement("a");
+        anchor.href = URL;
+        anchor.download = "Sketch.jpg";
+        anchor.click();
+        setActionMenuItem(null);
+      }
+      if (actionMenuItem?.label === MENU_ITEM_TYPE.UNDO) {
+        if (pointor.current - 1 >= 0) {
+          const imageData = history.current[pointor.current - 1];
+          imageData && context.putImageData(imageData, 0, 0);
+          pointor.current = pointor.current - 1;
+        } else {
+          context.fillStyle = "#fefdfa";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+      }
+      if (actionMenuItem?.label === MENU_ITEM_TYPE.REDU) {
+        if (pointor.current < history.current.length - 1) {
+          const imageData = history.current[pointor.current + 1];
+          imageData && context.putImageData(imageData, 0, 0);
+          pointor.current = pointor.current + 1;
+        }
+       
+      }
+    }
+  };
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d")!;
-    if (actionMenuItem?.label === MENU_ITEM_TYPE.DOWNLOAD) {
-      const URL = canvas.toDataURL();
-      const anchor = document.createElement("a");
-      anchor.href = URL;
-      anchor.download = "Sketch.jpg";
-      anchor.click();
-      console.log(URL);
-      setActionMenuItem(null);
-    }
-    if (actionMenuItem?.label === MENU_ITEM_TYPE.UNDO) {
-      if (pointor.current - 1 >= 0) {
-        const imageData = history.current[pointor.current - 1];
-        imageData && context.putImageData(imageData, 0, 0);
-        pointor.current = pointor.current - 1;
-      } else {
-        context.fillStyle = "#fefdfa";
-        context.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-    if (actionMenuItem?.label === MENU_ITEM_TYPE.REDU) {
-      if (pointor.current < history.current.length - 1) {
-        const imageData = history.current[pointor.current + 1];
-        imageData && context.putImageData(imageData, 0, 0);
-        pointor.current = pointor.current + 1;
-      }
-    }
+    handleAction();
+    socket.emit("handleAction");
     setActionMenuItem(null);
   }, [actionMenuItem, setActionMenuItem]);
 
@@ -76,27 +81,12 @@ const Board = () => {
     if (!canvasRef.current) return;
 
     socket.emit("client-ready");
-    socket.on("get-canvas-state", () => {
-      if (!canvasRef.current?.toDataURL()) return;
-      socket.emit("canvas-state", canvasRef.current.toDataURL());
-    });
-    socket.on("canvas-state-from-server", (state: string) => {
-      console.log("I have recieved the data",state);
-      if (!state) {
-        context.fillStyle = "#fefdfa";
-        context.fillRect(0, 0, canvas.width, canvas.height);
-      } else {
-        const img = new Image();
-        img.src = state;
-        img.onload = () => {
-          context?.drawImage(img, 0, 0);
-        };
-      }
-    });
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d")!;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    context.fillStyle = "#fefdfa";
+    context.fillRect(0, 0, canvas.width, canvas.height);
     const beginPath = (x: number, y: number) => {
       context?.beginPath();
       context?.moveTo(x, y);
@@ -115,11 +105,15 @@ const Board = () => {
       drawLine(e.clientX, e.clientY);
       socket.emit("drawLine", { x: e.clientX, y: e.clientY });
     };
-    const handleMouseUp = (e: MouseEvent) => {
+    const setMouseUp = () => {
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       history.current.push(imageData);
       pointor.current = history.current.length - 1;
       shouldDrawRef.current = false;
+    };
+    const handleMouseUp = (e: MouseEvent) => {
+      setMouseUp()
+      socket.emit("setMouseUp");
     };
     const handleBeginPath = (path: { x: number; y: number }) => {
       beginPath(path.x, path.y);
@@ -133,6 +127,22 @@ const Board = () => {
     canvas.addEventListener("mouseup", handleMouseUp);
     socket.on("beginPath", handleBeginPath);
     socket.on("drawLine", handleDrawPath);
+    socket.on("handleAction", handleAction);
+    socket.on("setMouseUp", setMouseUp);
+    
+    socket.on("get-canvas-state", () => {
+      if (!canvasRef.current?.toDataURL()) return null;
+      socket.emit("canvas-state", canvasRef.current.toDataURL());
+    });
+    socket.on("canvas-state-from-server", (state: string) => {
+      if (state) {
+        const img = new Image();
+        img.src = state;
+        img.onload = () => {
+          context?.drawImage(img, 0, 0);
+        };
+      }
+    });
     return () => {
       canvas.removeEventListener("mousedown", handleMouseDown);
       canvas.removeEventListener("mousemove", handleMouseMove);
@@ -141,6 +151,8 @@ const Board = () => {
       socket.off("drawLine");
       socket.off("get-canvas-state");
       socket.off("canvas-state-from-server");
+      socket.off("handleAction");
+      socket.off("setMouseUp");
     };
   }, []);
   return <canvas className="block" ref={canvasRef}></canvas>;

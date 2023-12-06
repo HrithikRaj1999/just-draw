@@ -8,16 +8,15 @@ const Menu = () => {
   const { socket } = useSocket();
   const { menuItemClicked, setActionMenuItem, setMenuItemClicked } =
     useToolKitContext();
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ x: 600, y: 100 });
+  const ref = useRef<{ offsetX: number; offsetY: number } | null>(null);
   const handleMenuItemClicked = (item: MenuType) => {
     if (item.type === "item") setMenuItemClicked(item);
     else setActionMenuItem(item);
   };
-  const [isDragging, setIsDragging] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const ref = useRef<{ offsetX: number; offsetY: number } | null>(null);
 
   const onMouseDown = (e: { clientX: number; clientY: number }) => {
-   
     setIsDragging(true);
     ref.current = {
       offsetX: e.clientX - position.x,
@@ -35,7 +34,7 @@ const Menu = () => {
   };
 
   const onMouseMove = (e: { clientX: number; clientY: number }) => {
-    console.log("on MouseDrag rendered")
+    console.log("on MouseDrag rendered");
     if (isDragging && ref.current) {
       setPosition({
         x: e.clientX - ref.current.offsetX,
@@ -47,15 +46,14 @@ const Menu = () => {
       });
     }
   };
+
   useLayoutEffect(() => {
-    setPosition((prev) => {
-      return JSON.parse(localStorage.getItem("position") ?? "");
-    });
+    setPosition((prev) => JSON.parse(localStorage.getItem("position") ?? ""));
   }, []);
   useEffect(() => {
     localStorage.setItem("position", JSON.stringify(position));
   }, [position]);
-  // Socket event handlers
+
   useEffect(() => {
     const setMenuPosition = () => {
       const pos = localStorage.getItem("position");
@@ -66,12 +64,14 @@ const Menu = () => {
     };
 
     socket.on("setMenuPosition", setMenuPosition);
+    socket.on("setMenuItem", handleMenuItemClicked);
 
     // Cleanup
     return () => {
-      socket.off("setMenuPosition", setMenuPosition);
+      socket.off("setMenuPosition");
+      socket.off("setMenuItem");
     };
-  });
+  }, []);
   return (
     <div
       onMouseDown={onMouseDown}
@@ -93,7 +93,10 @@ const Menu = () => {
               "icon",
               menuItemClicked.label === item.label ? "border bg-slate-100" : ""
             )}
-            onClick={() => handleMenuItemClicked(item)}
+            onClick={() => {
+              socket.emit("setMenuItemIsclicked", item);
+              handleMenuItemClicked(item);
+            }}
           />
         ))}
       </div>

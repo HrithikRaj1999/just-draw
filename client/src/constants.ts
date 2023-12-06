@@ -6,7 +6,7 @@ import {
 import { faRotateRight } from "@fortawesome/free-solid-svg-icons/faRotateRight";
 import { faFileArrowDown } from "@fortawesome/free-solid-svg-icons/faFileArrowDown";
 
-export const COLOR_LIST = ["blue", "green", "black", "brown", "yellow", "red"];
+export const COLOR_LIST = ["blue",'white', "green", "black", "brown", "yellow", "red"];
 
 
 export const MENU_ITEMS = [

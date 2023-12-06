@@ -2,7 +2,14 @@
 import { MENU_ITEMS } from "@/constants";
 import { IconDefinition } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "next/dist/lib/metadata/types/metadata-types";
-import React, { createContext, useContext, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from "react";
+import { useSocket } from "./SocketContext";
 
 interface ToolKitContextProps {
   children: React.ReactNode;
@@ -37,12 +44,27 @@ interface ToolKitContextType {
 }
 const ToolKitContext = createContext({} as ToolKitContextType);
 export const ToolKitContextProvider = ({ children }: ToolKitContextProps) => {
+  const { socket } = useSocket();
   const [menuItemClicked, setMenuItemClicked] = useState(MENU_ITEMS[0]);
   const [actionMenuItem, setActionMenuItem] = useState<MenuType | null>(null);
   const [pencilProperties, setPencilProperties] =
     useState<pencilPropertiesType>({ pencilSize: 3, pencilColor: "black" });
   const [eraserPropertise, setEraserPropertise] =
     useState<EraserPropertiesType>({ eraserSize: 3, eraserColor: "#fefdfa" });
+
+  const handleInitPropertise = () => {
+    setMenuItemClicked({...menuItemClicked});
+    setPencilProperties({...pencilProperties});
+    setEraserPropertise({...eraserPropertise});
+  };
+  useLayoutEffect(() => {
+    socket.emit("menuComponentLoaded");
+    socket.on("setInitPropertise", handleInitPropertise);
+    return () => {
+      socket.off("setInitPropertise");
+    };
+  }, []);
+
   return (
     <ToolKitContext.Provider
       value={{

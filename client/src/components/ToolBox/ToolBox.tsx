@@ -1,11 +1,12 @@
-import { COLOR_LIST, MENU_ITEMS, MENU_ITEM_TYPE } from "@/constants";
+import { COLOR_LIST, MENU_ITEM_TYPE } from "@/constants";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Colors from "./Colors";
 import { useToolKitContext } from "@/Context/ToolKitContext";
-import cx from "classnames";
+import { useSocket } from "@/Context/SocketContext";
 const ToolBox = () => {
   const [isDragging, setIsDragging] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState({ x: 10, y: 200 });
+  const { socket } = useSocket();
   const ref = useRef<{ offsetX: number; offsetY: number } | null>(null);
   const onMouseDown = (e: { clientX: number; clientY: number }) => {
     setIsDragging(true);
@@ -13,6 +14,7 @@ const ToolBox = () => {
       offsetX: e.clientX - position.x,
       offsetY: e.clientY - position.y,
     };
+    socket.emit("toolBoxPositionChanged");
   };
 
   const onMouseUp = () => {
@@ -26,6 +28,7 @@ const ToolBox = () => {
         x: e.clientX - ref.current.offsetX,
         y: e.clientY - ref.current.offsetY,
       });
+      socket.emit("toolBoxPositionChanged");
     }
   };
   const {
@@ -36,24 +39,46 @@ const ToolBox = () => {
     setEraserPropertise,
   } = useToolKitContext();
 
-  const handleSize = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation();
-    if (menuItemClicked.label === MENU_ITEM_TYPE.PENCIL) {
+  const handlePencilProperties = (type: string, value: string) => {
+    if (type === "size") {
       setPencilProperties((prev) => {
         return {
           ...prev,
-          pencilSize: parseInt(e.target.value),
+          pencilSize: parseInt(value) / 10,
         };
       });
+    }
+    if (type === "color") {
+      setPencilProperties((prev) => {
+        return { ...prev, pencilColor: value };
+      });
+    }
+  };
+  const handleEraserProperties = (value: string) => {
+    setEraserPropertise((prev) => {
+      return {
+        ...prev,
+        eraserSize: parseInt(value) / 10,
+      };
+    });
+  };
+  const handleSize = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (menuItemClicked.label === MENU_ITEM_TYPE.PENCIL) {
+      handlePencilProperties("size", e.target.value);
+      socket.emit("pencilPropertyEdited", "size", e.target.value);
     }
     if (menuItemClicked.label === MENU_ITEM_TYPE.ERASER) {
-      setEraserPropertise((prev) => {
-        return {
-          ...prev,
-          eraserSize: parseInt(e.target.value),
-        };
-      });
+      handleEraserProperties(e.target.value);
+      socket.emit("erarerPropertyEdited", e.target.value);
     }
+  };
+  const setToolboxPosition = () => {
+    const pos = localStorage.getItem("tool-box-position");
+    setPosition(() => {
+      if (pos) return JSON.parse(pos);
+      else return { x: 10, y: 500 };
+    });
   };
   useLayoutEffect(() => {
     setPosition((prev) => {
@@ -63,6 +88,17 @@ const ToolBox = () => {
   useEffect(() => {
     localStorage.setItem("tool-box-position", JSON.stringify(position));
   }, [position]);
+  useEffect(() => {
+    socket.on("setPencilProperties", handlePencilProperties);
+    socket.on("setErasorProperties", handleEraserProperties);
+    socket.on("setToolBoxPosition", setToolboxPosition);
+
+    return () => {
+      socket.off("setPencilProperties");
+      socket.off("setErasorProperties");
+      socket.off("setToolBoxPosition");
+    };
+  }, []);
   return (
     <div
       style={{
@@ -78,27 +114,33 @@ const ToolBox = () => {
       {menuItemClicked?.label === MENU_ITEM_TYPE.PENCIL ? (
         <div className="stroke-color-selector">
           <h4 className="stroke-color">
-            {menuItemClicked.name} Color: {pencilProperties.pencilColor}{" "}
+            {menuItemClicked.name} Color: <b>{pencilProperties.pencilColor.split('')[0].toUpperCase()+pencilProperties.pencilColor.slice(1)}</b>{" "}
           </h4>
-          <div className="color-box">
+          <div className="color-box" onMouseDown={(e) => e.stopPropagation()}>
             {COLOR_LIST.map((color: string, i: number) => (
-              <Colors key={i} color={color} />
+              <Colors
+                key={i}
+                color={color}
+                handlePencilProperties={handlePencilProperties}
+              />
             ))}
           </div>
         </div>
       ) : null}
       <div className="range-container" onMouseDown={(e) => e.stopPropagation()}>
-        <h4>{menuItemClicked.name} size</h4>
+        <h4>
+          {menuItemClicked.name} size: <b>{pencilProperties.pencilSize}</b>
+        </h4>
         <input
           className="size-range"
           type="range"
           value={
             menuItemClicked?.label === MENU_ITEM_TYPE.PENCIL
-              ? pencilProperties.pencilSize
-              : eraserPropertise.eraserSize
+              ? pencilProperties.pencilSize * 10
+              : eraserPropertise.eraserSize * 10
           }
           min={1}
-          max={50}
+          max={menuItemClicked?.label === MENU_ITEM_TYPE.PENCIL ? 100 : 1000} //for smoothness it has been made larger
           step={1}
           onChange={handleSize}
         />

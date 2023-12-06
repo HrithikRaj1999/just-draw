@@ -2,6 +2,8 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import { socketController } from "./controller/socketController";
+
 const app = express();
 app.use(cors({ origin: "http://localhost:3000" }));
 const httpServer = createServer(app);
@@ -12,23 +14,6 @@ const io = new Server(httpServer, {
     credentials: true, // If credentials are needed
   },
 });
-io.on("connection", (socket) => {
-  console.log("Server Connected Successfully",);
-  socket.on('client-ready',()=>{
-    socket.broadcast.emit('get-canvas-state')
-  })
-  socket.on('canvas-state',(state)=>{
-    socket.broadcast.emit('canvas-state-from-server',state)
-  })
-  socket.on("beginPath", (args) => {
-    socket.broadcast.emit("beginPath", args);
-  });
-  socket.on("drawLine", (args) => {
-    socket.broadcast.emit("drawLine", args);
-  });
-  socket.on("setMenuPosition", () => {
-    socket.broadcast.emit("setMenuPosition");
-  });
-});
+io.on("connection",socketController);
 
 httpServer.listen(5000);

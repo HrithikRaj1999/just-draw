@@ -1,28 +1,29 @@
 import { useToolKitContext } from "@/Context/ToolKitContext";
 import React from "react";
 import cx from "classnames";
+import { useSocket } from "@/Context/SocketContext";
 interface ColorsPropsType {
   color: string;
+  handlePencilProperties: (type:string,value:string) => void;
 }
 
 const Colors = (props: ColorsPropsType) => {
   const { pencilProperties, setPencilProperties } = useToolKitContext();
-  const { color } = props;
+  const { color,handlePencilProperties } = props;
+  const { socket } = useSocket();
   return (
     <div
-      onMouseDown={(e) => e.stopPropagation()}
       className={cx(
         "color",
         pencilProperties.pencilColor === color
-          ? "border-2 border-b-zinc-200 shadow-2xl"
-          : null
+          ? "border-4  border-black "
+          : 'border'
       )}
       style={{ backgroundColor: color }}
-      onClick={() =>
-        setPencilProperties((prev) => {
-          return { ...prev, pencilColor: color };
-        })
-      }
+      onClick={() => {
+        handlePencilProperties("color", color);
+        socket.emit("pencilPropertyEdited", "color", color);
+      }}
     >
       {}
     </div>
