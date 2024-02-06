@@ -13,7 +13,7 @@ interface propsType {
 const ClientSocket = createContext({} as SocketContextType);
 const ClientSocketProvider = (props: propsType) => {
   const { children } = props;
-  const [socket, setSocket] = useState<Socket>(io("http://localhost:5000"));
+  const [socket, setSocket] = useState<Socket>(io("https://just-draw-backend-1.onrender.com"));
   useEffect(() => {
     setSocket(socket);
     socket.on("connect", () => {
