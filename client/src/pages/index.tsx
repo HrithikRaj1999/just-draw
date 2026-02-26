@@ -1,17 +1,10 @@
-import ClientSocketProvider from "@/Context/SocketContext";
-import { ToolKitContextProvider } from "@/Context/ToolKitContext";
-import Board from "@/components/Board/Board";
-import Menu from "@/components/Menu/Menu";
-import ToolBox from "@/components/ToolBox/ToolBox";
+import dynamic from "next/dynamic";
+
+const WhiteboardApp = dynamic(() => import("@/v2/app/WhiteboardApp"), {
+  ssr: false,
+  loading: () => <main className="v2-loading">Loading whiteboard...</main>,
+});
 
 export default function Home() {
-  return (
-    <ClientSocketProvider>
-      <ToolKitContextProvider>
-        <Board />
-        <Menu />
-        <ToolBox />
-      </ToolKitContextProvider>
-    </ClientSocketProvider>
-  );
+  return <WhiteboardApp />;
 }

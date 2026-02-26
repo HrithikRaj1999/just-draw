@@ -1,23 +1,24 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Low-latency realtime whiteboard socket server",
+  "main": "dist/server.js",
   "scripts": {
-    "start":"nodemon index.ts",
-    "build":"build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "author": "",
+  "author": "Codex",
   "license": "ISC",
   "dependencies": {
-    "@types/express": "^4.17.21",
-    "@types/socket.io": "^3.0.2",
-    "express": "^4.18.2",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "dotenv": "^16.6.1",
+    "ioredis": "^5.8.2",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
+    "@types/node": "^20.10.3",
     "@typescript-eslint/eslint-plugin": "^6.7.5",
     "@typescript-eslint/parser": "^6.7.5",
     "eslint": "^8.51.0",
@@ -26,6 +27,7 @@
     "eslint-plugin-import": "^2.28.1",
     "eslint-plugin-n": "^16.2.0",
     "eslint-plugin-promise": "^6.1.1",
+    "nodemon": "^3.0.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
   }

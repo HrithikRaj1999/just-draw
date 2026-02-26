@@ -1,4 +1,13 @@
 {
+  "scripts": {
+    "setup": "python scripts/setup.py",
+    "start": "python scripts/run.py start",
+    "stop": "python scripts/run.py stop",
+    "cloud:start": "python scripts/run.py start --cloud",
+    "cloud:stop": "python scripts/run.py stop --cloud",
+    "cloud:deploy": "python scripts/run.py deploy",
+    "cloud:destroy": "python scripts/run.py deploy --destroy"
+  },
   "dependencies": {
     "cors": "^2.8.5"
   }
