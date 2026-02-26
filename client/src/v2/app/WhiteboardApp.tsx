@@ -1,22 +1,13 @@
-"use client";
-
-import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { getOrCreateRoomId, getOrCreateUser } from "../lib/identity";
 import { useRealtimeWhiteboard } from "../hooks/useRealtimeWhiteboard";
 import type { DrawingTool, UserIdentity } from "../types/whiteboard";
 import type { WhiteboardCanvasHandle } from "../components/WhiteboardCanvas";
 
-const WhiteboardCanvas = dynamic(
-  () => import("../components/WhiteboardCanvas"),
-  { ssr: false }
-);
-const Toolbar = dynamic(() => import("../components/Toolbar"), { ssr: false });
-const ParticipantStrip = dynamic(
-  () => import("../components/ParticipantStrip"),
-  { ssr: false }
-);
-const RoomInfo = dynamic(() => import("../components/RoomInfo"), { ssr: false });
+const WhiteboardCanvas = lazy(() => import("../components/WhiteboardCanvas"));
+const Toolbar = lazy(() => import("../components/Toolbar"));
+const ParticipantStrip = lazy(() => import("../components/ParticipantStrip"));
+const RoomInfo = lazy(() => import("../components/RoomInfo"));
 
 interface SessionState {
   roomId: string;
@@ -70,40 +61,42 @@ const WhiteboardApp = () => {
 
   return (
     <main className="v2-shell">
-      <ParticipantStrip
-        participants={participants}
-        connected={connected}
-        user={user}
-      />
-
-      <section className="v2-stage">
-        <Toolbar
-          tool={tool}
-          strokeColor={strokeColor}
-          strokeSize={strokeSize}
-          onToolChange={setTool}
-          onStrokeColorChange={setStrokeColor}
-          onStrokeSizeChange={setStrokeSize}
-          onClear={() => canvasRef.current?.clearBoard()}
-          onDownload={() => canvasRef.current?.downloadPng()}
-          onExportJson={() => canvasRef.current?.exportJson()}
-        />
-
-        <WhiteboardCanvas
-          ref={canvasRef}
-          tool={tool}
-          strokeColor={strokeColor}
-          strokeSize={strokeSize}
-          user={user}
-          elements={elements}
+      <Suspense fallback={<main className="v2-loading">Loading whiteboard...</main>}>
+        <ParticipantStrip
           participants={participants}
-          onUpsertElement={upsertElement}
-          onReplaceBoard={replaceBoard}
-          onPresenceUpdate={updatePresence}
+          connected={connected}
+          user={user}
         />
 
-        <RoomInfo roomId={roomId} boardVersion={boardVersion} />
-      </section>
+        <section className="v2-stage">
+          <Toolbar
+            tool={tool}
+            strokeColor={strokeColor}
+            strokeSize={strokeSize}
+            onToolChange={setTool}
+            onStrokeColorChange={setStrokeColor}
+            onStrokeSizeChange={setStrokeSize}
+            onClear={() => canvasRef.current?.clearBoard()}
+            onDownload={() => canvasRef.current?.downloadPng()}
+            onExportJson={() => canvasRef.current?.exportJson()}
+          />
+
+          <WhiteboardCanvas
+            ref={canvasRef}
+            tool={tool}
+            strokeColor={strokeColor}
+            strokeSize={strokeSize}
+            user={user}
+            elements={elements}
+            participants={participants}
+            onUpsertElement={upsertElement}
+            onReplaceBoard={replaceBoard}
+            onPresenceUpdate={updatePresence}
+          />
+
+          <RoomInfo roomId={roomId} boardVersion={boardVersion} />
+        </section>
+      </Suspense>
     </main>
   );
 };

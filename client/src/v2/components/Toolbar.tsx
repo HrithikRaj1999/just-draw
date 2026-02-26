@@ -1,5 +1,3 @@
-"use client";
-
 import type { DrawingTool } from "../types/whiteboard";
 
 interface ToolbarProps {

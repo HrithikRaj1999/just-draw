@@ -9,7 +9,7 @@ This repository now includes a new modular V2 refactor focused on:
 
 ## Project Structure
 
-- `client/`: Next.js TypeScript frontend (lazy-loaded V2 whiteboard UI)
+- `client/`: React + TypeScript + Vite frontend (lazy-loaded V2 whiteboard UI)
 - `backend/`: TypeScript Socket.IO realtime service (rooms, presence, autosave)
 - `infra/terraform/`: AWS ECS + ALB + Redis + CloudFront/S3 stack
 
@@ -49,7 +49,7 @@ This will:
 
 - Run Terraform apply in `infra/terraform`
 - Read `websocket_endpoint` output
-- Update `client/.env.local` with `NEXT_PUBLIC_WS_URL`
+- Update `client/.env.local` with `VITE_WS_URL`
 - Start frontend locally against cloud websocket backend
 
 Cloud stop (non-destructive):
@@ -91,7 +91,7 @@ Server push events:
    - `terraform plan`
    - `terraform apply`
 3. Use outputs:
-   - `websocket_endpoint` for `NEXT_PUBLIC_WS_URL`
+   - `websocket_endpoint` for `VITE_WS_URL`
    - `cloudfront_domain_name` for frontend hosting
 
 ## Notes

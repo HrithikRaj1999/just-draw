@@ -1,6 +1,4 @@
-"use client";
-
-import React, {
+import {
   forwardRef,
   useCallback,
   useEffect,

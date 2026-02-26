@@ -114,7 +114,7 @@ def start_cloud(desired_count: int) -> None:
 
     ws_endpoint = get_terraform_output("websocket_endpoint")
     if ws_endpoint:
-        upsert_env_value(CLIENT_ENV_LOCAL, "NEXT_PUBLIC_WS_URL", ws_endpoint)
+        upsert_env_value(CLIENT_ENV_LOCAL, "VITE_WS_URL", ws_endpoint)
         Logger.success(f"Updated client websocket URL: {ws_endpoint}")
     else:
         Logger.warning("Unable to resolve websocket endpoint from Terraform output.")

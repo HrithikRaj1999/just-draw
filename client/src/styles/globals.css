@@ -1,37 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-.menuContainer {
-  @apply absolute px-5 py-1 w-[200px] flex justify-between  rounded-md ;
-}
-.iconWrapper {
-  @apply relative flex justify-between   p-3 rounded-lg shadow-sm border;
-}
-.icon {
-  @apply cursor-pointer hover:shadow-sm  rounded-lg hover:bg-slate-200 gap-2 mx-1 p-2;
-}
-
-.color-box {
-  @apply border flex flex-1 p-2 gap-2 ;
-}
-.size-range {
-  @apply w-[150px] md:w-[200px];
-}
-
-.stroke-color-selector {
-  @apply grid gap-2;
-}
-.tool-container {
-  @apply absolute grid gap-1 p-3 border;
-}
-.color {
-  @apply flex w-8 h-8 hover:cursor-pointer;
-}
-
 html,
 body,
-#__next {
+#root {
   width: 100%;
   height: 100%;
 }
@@ -41,6 +10,10 @@ body {
   font-family: "Segoe UI", "Roboto", sans-serif;
   background: radial-gradient(circle at top, #ffffff 0%, #f1f5f9 45%, #e2e8f0 100%);
   color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 .v2-loading {

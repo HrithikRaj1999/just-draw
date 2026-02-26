@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { createServer } from "node:http";
+import cors from "cors";
+import express from "express";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
 import { Server } from "socket.io";
@@ -8,7 +10,23 @@ import { registerSocketHandlers } from "./socket/registerSocketHandlers";
 import { FileBoardPersistence } from "./store/fileBoardPersistence";
 import { RoomRegistry } from "./store/roomRegistry";
 
-const httpServer = createServer();
+const app = express();
+app.disable("x-powered-by");
+app.use(
+  cors({
+    origin: config.corsOrigin,
+    credentials: false,
+  })
+);
+app.use(express.json({ limit: "1mb" }));
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true, service: "whiteboard-realtime" });
+});
+app.get("/", (_req, res) => {
+  res.status(200).json({ ok: true, message: "WebSocket server is running." });
+});
+
+const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {

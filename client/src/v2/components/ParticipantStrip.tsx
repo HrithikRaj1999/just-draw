@@ -1,5 +1,3 @@
-"use client";
-
 import type { PresenceState, UserIdentity } from "../types/whiteboard";
 
 interface ParticipantStripProps {

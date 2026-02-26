@@ -2,8 +2,13 @@ import { io, type Socket } from "socket.io-client";
 
 let socketSingleton: Socket | null = null;
 
+interface ViteEnvShape {
+  VITE_WS_URL?: string;
+}
+
 const resolveSocketUrl = (): string => {
-  const fromEnv = process.env.NEXT_PUBLIC_WS_URL;
+  const env = (import.meta as ImportMeta & { env?: ViteEnvShape }).env;
+  const fromEnv = env?.VITE_WS_URL;
   if (fromEnv && fromEnv.trim().length > 0) {
     return fromEnv;
   }

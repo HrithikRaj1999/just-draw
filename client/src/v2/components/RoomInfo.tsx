@@ -1,5 +1,3 @@
-"use client";
-
 interface RoomInfoProps {
   roomId: string;
   boardVersion: number;
