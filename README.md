@@ -5,26 +5,27 @@ This repository now includes a new modular V2 refactor focused on:
 - WebSocket-only realtime collaboration
 - Low-latency drawing with smoothing
 - Lazy-loaded frontend modules
-- AWS-friendly infrastructure via Terraform
+- AWS backend infrastructure via Terraform
+- Cloudflare Pages frontend deployment
 
 ## Project Structure
 
-- `client/`: React + TypeScript + Vite frontend (lazy-loaded V2 whiteboard UI)
-- `backend/`: TypeScript Socket.IO realtime service (rooms, presence, autosave)
-- `infra/terraform/`: AWS ECS + ALB + Redis + CloudFront/S3 stack
+- `apps/web/`: React + TypeScript + Vite frontend (lazy-loaded V2 whiteboard UI)
+- `apps/server/`: TypeScript Express + Socket.IO realtime service
+- `apps/env/`: local/cloud environment profiles
+- `infra/terraform/`: AWS ECS + ALB + Redis + ECR stack
+- `.github/workflows/`: CI + deploy workflows (`ci.yml`, `deploy.yml`, `deploy-dev.yml`, `deploy-prod.yml`)
 
 ## Local Run
 
-Use the unified scripts (mode is controlled by `.env.mode`):
+1. Edit `apps/env/.env.local` as needed.
+2. Run setup:
+   - `npm run setup`
+3. Start local mode:
+   - `npm run local`
 
-1. `Copy-Item .env.mode.example .env.mode` (PowerShell)  
-   or `cp .env.mode.example .env.mode` (bash)
-2. `npm run setup`
-3. `npm run start`
-
-Stop all local services:
-
-- `npm run stop`
+Stop local mode:
+- `npm run local:stop`
 
 PowerShell wrappers:
 
@@ -40,21 +41,49 @@ Open `http://localhost:3000?room=my-room` in multiple tabs/devices.
 
 ## Cloud Mode
 
-Set `ENABLE_CLOUD=true` in `.env.mode`, then:
+1. Fill `apps/env/.env.cloud` with your cloud credentials/config.
+2. Run setup:
+   - `npm run setup:cloud`
+3. Start cloud mode:
+   - `npm run cloud`
 
-1. `python scripts/setup.py --cloud`
-2. `python scripts/run.py start --cloud`
-
-This will:
+Cloud mode will:
 
 - Run Terraform apply in `infra/terraform`
 - Read `websocket_endpoint` output
-- Update `client/.env.local` with `VITE_WS_URL`
+- Inject `VITE_WS_URL` into the frontend process
 - Start frontend locally against cloud websocket backend
+
+## One-Command Production Deploy (AWS + Cloudflare)
+
+Command:
+
+- `npm run cloud:deploy:full`
+
+What it does:
+
+1. Applies AWS infra (ECR, ECS, ALB, Redis, networking)
+2. Builds backend Docker image and pushes to ECR
+3. Re-applies Terraform with the new backend image
+4. Builds frontend with `VITE_WS_URL` from AWS output
+5. Deploys frontend `apps/web/dist` to Cloudflare Pages
+
+Required from you (set in shell env):
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_SESSION_TOKEN` (if temporary creds)
+- `AWS_REGION` (optional, default `us-east-1`)
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_PAGES_PROJECT_NAME`
+- `CLOUDFLARE_PAGES_BRANCH` (optional, default `main`)
+
+Deploy script auto-loads `apps/env/.env.cloud`.
 
 Cloud stop (non-destructive):
 
-- `python scripts/run.py stop --cloud` (scales ECS `desired_count` to `0`)
+- `npm run cloud:stop` (scales ECS `desired_count` to `0`)
 
 Cloud destroy:
 
@@ -85,14 +114,13 @@ Server push events:
 
 ## Terraform Deploy
 
-1. Build and push backend image to ECR.
-2. In `infra/terraform/`, run:
+1. In `infra/terraform/`, run:
    - `terraform init`
    - `terraform plan`
    - `terraform apply`
-3. Use outputs:
+2. Use outputs:
    - `websocket_endpoint` for `VITE_WS_URL`
-   - `cloudfront_domain_name` for frontend hosting
+   - `ecr_repository_url` for backend image publishing
 
 ## Notes
 

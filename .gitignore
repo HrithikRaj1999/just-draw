@@ -5,7 +5,7 @@ jspm_packages/
 # Build outputs
 **/dist/
 **/.next/
-backend/data/
+apps/server/data/
 
 # Terraform local artifacts
 infra/terraform/.terraform/
@@ -18,10 +18,9 @@ override.tf.json
 *_override.tf.json
 
 # Local environment/runtime files
-.env.mode
 .pids
-backend/.env
-client/.env.local
+apps/env/.env.local
+apps/env/.env.cloud
 
 # Python cache
 **/__pycache__/

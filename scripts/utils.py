@@ -46,8 +46,10 @@ class Logger:
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MODE_ENV_FILE = PROJECT_ROOT / ".env.mode"
-MODE_ENV_EXAMPLE = PROJECT_ROOT / ".env.mode.example"
+APPS_DIR = PROJECT_ROOT / "apps"
+APPS_ENV_DIR = APPS_DIR / "env"
+LOCAL_ENV_FILE = APPS_ENV_DIR / ".env.local"
+CLOUD_ENV_FILE = APPS_ENV_DIR / ".env.cloud"
 
 
 def is_windows() -> bool:
@@ -90,16 +92,6 @@ def upsert_env_value(path: Path, key: str, value: str) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(next_lines) + "\n", encoding="utf-8")
-
-
-def ensure_file_from_example(example_path: Path, target_path: Path) -> None:
-    if target_path.exists():
-        return
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    if example_path.exists():
-        target_path.write_text(example_path.read_text(encoding="utf-8"), encoding="utf-8")
-    else:
-        target_path.write_text("", encoding="utf-8")
 
 
 def run_command(

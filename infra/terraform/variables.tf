@@ -19,7 +19,7 @@ variable "environment" {
 variable "availability_zones" {
   type        = list(string)
   description = "AZs used for subnet spread."
-  default     = ["us-east-1a", "us-east-1b"]
+  default     = []
 }
 
 variable "vpc_cidr" {

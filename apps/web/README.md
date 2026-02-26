@@ -10,8 +10,10 @@ This frontend is now a plain React TypeScript app using Vite.
 
 ## Environment
 
-Create `.env.local` from `.env.example`:
+This app reads env from `apps/env` (configured via `vite.config.ts`).
 
-- `VITE_WS_URL=ws://localhost:5000`
+- Local mode file: `apps/env/.env.local`
+- Cloud mode file: `apps/env/.env.cloud`
+- Primary frontend key: `VITE_WS_URL`
 
 If unset, the app falls back to `ws(s)://<current-host>:5000`.

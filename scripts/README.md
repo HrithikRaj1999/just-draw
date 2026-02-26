@@ -6,12 +6,21 @@ Unified commands:
 - `python scripts/run.py start`
 - `python scripts/run.py stop`
 - `python scripts/run.py deploy`
+- `python scripts/run.py deploy --full`
 
 Mode source:
 
-- `.env.mode`
+- `apps/env/.env.local`
   - `ENABLE_CLOUD=false` -> local backend + frontend + local Redis
-  - `ENABLE_CLOUD=true` -> Terraform cloud stack + local frontend against cloud websocket
+- `apps/env/.env.cloud`
+  - `ENABLE_CLOUD=true` -> Terraform AWS backend stack + local frontend against cloud websocket
+
+Production one-command deploy:
+
+- `python scripts/deploy.py --full`
+- or `npm run cloud:deploy:full`
+
+Credentials can be provided via shell env or `apps/env/.env.cloud`.
 
 PowerShell wrappers:
 

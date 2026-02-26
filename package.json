@@ -1,11 +1,16 @@
 {
   "scripts": {
     "setup": "python scripts/setup.py",
+    "setup:cloud": "python scripts/setup.py --cloud",
     "start": "python scripts/run.py start",
+    "local": "python scripts/run.py start --local",
+    "local:stop": "python scripts/run.py stop --local",
+    "cloud": "python scripts/run.py start --cloud",
     "stop": "python scripts/run.py stop",
     "cloud:start": "python scripts/run.py start --cloud",
     "cloud:stop": "python scripts/run.py stop --cloud",
     "cloud:deploy": "python scripts/run.py deploy",
+    "cloud:deploy:full": "python scripts/run.py deploy --full",
     "cloud:destroy": "python scripts/run.py deploy --destroy"
   },
   "dependencies": {

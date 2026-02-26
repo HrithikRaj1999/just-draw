@@ -1,0 +1,58 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      cloudflare_branch:
+        required: true
+        type: string
+      desired_count:
+        required: false
+        default: "2"
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Prepare cloud env
+        run: |
+          mkdir -p apps/env
+          cat > apps/env/.env.cloud << 'EOF'
+          ENABLE_CLOUD=true
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_PAGES_PROJECT_NAME=${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }}
+          CLOUDFLARE_PAGES_BRANCH=${{ inputs.cloudflare_branch }}
+          EOF
+
+      - name: Install web deps
+        run: npm ci
+        working-directory: apps/web
+
+      - name: Full deploy
+        run: python scripts/run.py deploy --full --desired-count ${{ inputs.desired_count }} --cloudflare-branch ${{ inputs.cloudflare_branch }}

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install server deps
+        run: npm ci
+        working-directory: apps/server
+
+      - name: Validate server
+        run: |
+          npm run typecheck
+          npm run build
+        working-directory: apps/server
+
+      - name: Install web deps
+        run: npm ci
+        working-directory: apps/web
+
+      - name: Validate web
+        run: |
+          npm run typecheck
+          npm run build
+        working-directory: apps/web
+
+      - name: Validate scripts
+        run: python -m py_compile scripts/utils.py scripts/setup.py scripts/run.py scripts/deploy.py scripts/stop.py

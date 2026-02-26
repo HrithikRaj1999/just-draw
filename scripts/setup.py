@@ -6,20 +6,43 @@ import sys
 from pathlib import Path
 
 from utils import (
+    APPS_ENV_DIR,
+    CLOUD_ENV_FILE,
+    LOCAL_ENV_FILE,
     Logger,
-    MODE_ENV_EXAMPLE,
-    MODE_ENV_FILE,
     PROJECT_ROOT,
     command_exists,
-    ensure_file_from_example,
-    load_simple_env,
     run_command,
 )
 
 
-BACKEND_DIR = PROJECT_ROOT / "backend"
-CLIENT_DIR = PROJECT_ROOT / "client"
+BACKEND_DIR = PROJECT_ROOT / "apps" / "server"
+CLIENT_DIR = PROJECT_ROOT / "apps" / "web"
 TF_DIR = PROJECT_ROOT / "infra" / "terraform"
+
+DEFAULT_LOCAL_PROFILE = """ENABLE_CLOUD=false
+BACKEND_PORT=5000
+BACKEND_CORS_ORIGIN=*
+BACKEND_REDIS_URL=redis://127.0.0.1:6379
+BACKEND_BOARD_STORAGE_DIR=./data/boards
+BACKEND_AUTOSAVE_DEBOUNCE_MS=750
+VITE_WS_URL=ws://localhost:5000
+"""
+
+DEFAULT_CLOUD_PROFILE = """ENABLE_CLOUD=true
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_SESSION_TOKEN=
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_PAGES_PROJECT_NAME=
+CLOUDFLARE_PAGES_BRANCH=main
+TF_VAR_project_name=realtime-drawing-tool
+TF_VAR_environment=prod
+TF_VAR_socket_allowed_origin=
+VITE_WS_URL=
+"""
 
 
 def require_commands(commands: list[str]) -> None:
@@ -29,12 +52,19 @@ def require_commands(commands: list[str]) -> None:
         sys.exit(1)
 
 
+def ensure_file(path: Path, content: str) -> None:
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
 def setup_env_files() -> None:
     Logger.header("Environment Files")
-    ensure_file_from_example(MODE_ENV_EXAMPLE, MODE_ENV_FILE)
-    ensure_file_from_example(BACKEND_DIR / ".env.example", BACKEND_DIR / ".env")
-    ensure_file_from_example(CLIENT_DIR / ".env.example", CLIENT_DIR / ".env.local")
-    Logger.success("Environment templates verified.")
+    APPS_ENV_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_file(LOCAL_ENV_FILE, DEFAULT_LOCAL_PROFILE)
+    ensure_file(CLOUD_ENV_FILE, DEFAULT_CLOUD_PROFILE)
+    Logger.success("Central env files verified in apps/env.")
 
 
 def setup_node_deps() -> None:
@@ -60,12 +90,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    mode_env = load_simple_env(MODE_ENV_FILE)
-    enable_cloud = args.cloud or mode_env.get("ENABLE_CLOUD", "false").lower() == "true"
+    enable_cloud = args.cloud
 
     required = ["python", "npm", "node"]
     if enable_cloud:
-        required.append("terraform")
+        required.extend(["terraform", "aws", "docker"])
     require_commands(required)
 
     setup_env_files()
@@ -74,7 +103,8 @@ def main() -> None:
         setup_terraform()
 
     Logger.header("Setup Complete")
-    Logger.info("Run: python scripts/run.py start")
+    Logger.info("Run local: npm run local")
+    Logger.info("Run cloud: npm run cloud")
 
 
 if __name__ == "__main__":

@@ -12,22 +12,21 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from utils import (
+    CLOUD_ENV_FILE,
+    LOCAL_ENV_FILE,
     Logger,
-    MODE_ENV_FILE,
     PROJECT_ROOT,
     load_simple_env,
     run_command,
-    upsert_env_value,
 )
 
 
-BACKEND_DIR = PROJECT_ROOT / "backend"
-CLIENT_DIR = PROJECT_ROOT / "client"
+BACKEND_DIR = PROJECT_ROOT / "apps" / "server"
+CLIENT_DIR = PROJECT_ROOT / "apps" / "web"
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 TF_DIR = PROJECT_ROOT / "infra" / "terraform"
 DOCKER_COMPOSE_FILE = PROJECT_ROOT / "infra" / "docker" / "docker-compose.local.yml"
 PID_FILE = PROJECT_ROOT / ".pids"
-CLIENT_ENV_LOCAL = CLIENT_DIR / ".env.local"
 
 
 def detect_mode(force_cloud: bool, force_local: bool) -> str:
@@ -39,8 +38,8 @@ def detect_mode(force_cloud: bool, force_local: bool) -> str:
     if force_local:
         return "local"
 
-    mode_env = load_simple_env(MODE_ENV_FILE)
-    return "cloud" if mode_env.get("ENABLE_CLOUD", "false").lower() == "true" else "local"
+    cloud_env = load_simple_env(CLOUD_ENV_FILE)
+    return "cloud" if cloud_env.get("ENABLE_CLOUD", "false").lower() == "true" else "local"
 
 
 def save_pid_state(state: Dict[str, object]) -> None:
@@ -106,20 +105,34 @@ def get_terraform_output(name: str) -> str:
 
 
 def start_cloud(desired_count: int) -> None:
+    cloud_env = load_simple_env(CLOUD_ENV_FILE)
+    cloudflare_branch = cloud_env.get("CLOUDFLARE_PAGES_BRANCH", "main")
+
     Logger.header("Starting Cloud Mode")
     run_command(
-        [sys.executable, str(SCRIPTS_DIR / "deploy.py"), "--desired-count", str(desired_count)],
+        [
+            sys.executable,
+            str(SCRIPTS_DIR / "deploy.py"),
+            "--desired-count",
+            str(desired_count),
+            "--cloudflare-branch",
+            cloudflare_branch,
+        ],
         cwd=PROJECT_ROOT,
     )
 
     ws_endpoint = get_terraform_output("websocket_endpoint")
+    frontend_env = dict(os.environ)
+    frontend_env.update(cloud_env)
     if ws_endpoint:
-        upsert_env_value(CLIENT_ENV_LOCAL, "VITE_WS_URL", ws_endpoint)
-        Logger.success(f"Updated client websocket URL: {ws_endpoint}")
+        frontend_env["VITE_WS_URL"] = ws_endpoint
+        Logger.success(f"Resolved websocket URL: {ws_endpoint}")
+    elif cloud_env.get("VITE_WS_URL", "").strip():
+        Logger.warning("Terraform websocket_endpoint missing; falling back to VITE_WS_URL in apps/env/.env.cloud.")
     else:
-        Logger.warning("Unable to resolve websocket endpoint from Terraform output.")
+        Logger.warning("Unable to resolve websocket endpoint and VITE_WS_URL is unset.")
 
-    frontend_proc = start_process(["npm", "run", "dev"], CLIENT_DIR)
+    frontend_proc = start_process(["npm", "run", "dev", "--", "--mode", "cloud"], CLIENT_DIR, env=frontend_env)
     save_pid_state(
         {
             "mode": "cloud",
@@ -137,15 +150,43 @@ def start_cloud(desired_count: int) -> None:
 
 
 def start_local() -> None:
+    local_env = load_simple_env(LOCAL_ENV_FILE)
+
     Logger.header("Starting Local Mode")
     docker_compose_up()
 
     backend_env = dict(os.environ)
-    backend_env.setdefault("REDIS_URL", "redis://127.0.0.1:6379")
-    backend_env.setdefault("CORS_ORIGIN", "*")
+    backend_env.update(local_env)
+    backend_env["REDIS_URL"] = local_env.get(
+        "BACKEND_REDIS_URL",
+        local_env.get("REDIS_URL", "redis://127.0.0.1:6379"),
+    )
+    backend_env["CORS_ORIGIN"] = local_env.get(
+        "BACKEND_CORS_ORIGIN",
+        local_env.get("CORS_ORIGIN", "*"),
+    )
+    backend_env["PORT"] = local_env.get(
+        "BACKEND_PORT",
+        local_env.get("PORT", "5000"),
+    )
+    backend_env["BOARD_STORAGE_DIR"] = local_env.get(
+        "BACKEND_BOARD_STORAGE_DIR",
+        local_env.get("BOARD_STORAGE_DIR", "./data/boards"),
+    )
+    backend_env["AUTOSAVE_DEBOUNCE_MS"] = local_env.get(
+        "BACKEND_AUTOSAVE_DEBOUNCE_MS",
+        local_env.get("AUTOSAVE_DEBOUNCE_MS", "750"),
+    )
+
+    frontend_env = dict(os.environ)
+    frontend_env.update(local_env)
+    frontend_env["VITE_WS_URL"] = local_env.get(
+        "VITE_WS_URL",
+        "ws://localhost:5000",
+    )
 
     backend_proc = start_process(["npm", "run", "dev"], BACKEND_DIR, env=backend_env)
-    frontend_proc = start_process(["npm", "run", "dev"], CLIENT_DIR)
+    frontend_proc = start_process(["npm", "run", "dev", "--", "--mode", "local"], CLIENT_DIR, env=frontend_env)
 
     save_pid_state(
         {
@@ -221,6 +262,9 @@ def run_deploy(args: argparse.Namespace) -> None:
         command.append("--stop")
     if args.destroy:
         command.append("--destroy")
+    if args.full:
+        command.append("--full")
+        command.extend(["--cloudflare-branch", args.cloudflare_branch])
     if not args.stop and not args.destroy:
         command.extend(["--desired-count", str(args.desired_count)])
     run_command(command, cwd=PROJECT_ROOT)
@@ -252,6 +296,16 @@ def main() -> None:
     deploy_parser = subparsers.add_parser("deploy", help="Manage cloud resources.")
     deploy_parser.add_argument("--stop", action="store_true", help="Scale service down.")
     deploy_parser.add_argument("--destroy", action="store_true", help="Destroy all infra.")
+    deploy_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Deploy backend to AWS and frontend to Cloudflare.",
+    )
+    deploy_parser.add_argument(
+        "--cloudflare-branch",
+        default="main",
+        help="Cloudflare Pages branch for --full deploy.",
+    )
     deploy_parser.add_argument(
         "--desired-count",
         type=int,

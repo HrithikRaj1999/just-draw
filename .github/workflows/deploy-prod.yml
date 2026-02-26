@@ -1,0 +1,12 @@
+name: Deploy Prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-prod:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      cloudflare_branch: main
+      desired_count: "2"
+    secrets: inherit
