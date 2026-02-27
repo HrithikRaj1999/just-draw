@@ -4,6 +4,7 @@ import type {
   WhiteboardElement,
 } from "../types/whiteboard";
 import type { BoardPersistence } from "./boardPersistence";
+import { computePathData } from "../utils/stroke";
 
 interface RoomRuntime {
   board: BoardState;
@@ -25,7 +26,7 @@ export class RoomRegistry {
 
   constructor(
     private readonly persistence: BoardPersistence,
-    private readonly autosaveDebounceMs: number
+    private readonly autosaveDebounceMs: number,
   ) {}
 
   private ensureRuntime(roomId: string): RoomRuntime {
@@ -95,9 +96,18 @@ export class RoomRegistry {
 
   public async upsertElement(
     roomId: string,
-    element: WhiteboardElement
+    element: WhiteboardElement,
   ): Promise<BoardState> {
     const runtime = await this.hydrate(roomId);
+
+    // Server-side path calculation for newly drawn strokes
+    if (
+      element.type === "stroke" &&
+      (!("pathData" in element) || !element.pathData)
+    ) {
+      element.pathData = computePathData(element.points, element.size);
+    }
+
     runtime.board = {
       ...runtime.board,
       elements: {
@@ -110,7 +120,7 @@ export class RoomRegistry {
 
   public async deleteElement(
     roomId: string,
-    elementId: string
+    elementId: string,
   ): Promise<BoardState> {
     const runtime = await this.hydrate(roomId);
     const nextElements = { ...runtime.board.elements };
@@ -124,7 +134,7 @@ export class RoomRegistry {
 
   public async replaceBoard(
     roomId: string,
-    elements: Record<string, WhiteboardElement>
+    elements: Record<string, WhiteboardElement>,
   ): Promise<BoardState> {
     const runtime = await this.hydrate(roomId);
     runtime.board = {
@@ -137,7 +147,7 @@ export class RoomRegistry {
   public async setPresence(
     roomId: string,
     socketId: string,
-    presence: PresenceState
+    presence: PresenceState,
   ): Promise<PresenceState[]> {
     const runtime = await this.hydrate(roomId);
     runtime.presenceBySocketId.set(socketId, presence);

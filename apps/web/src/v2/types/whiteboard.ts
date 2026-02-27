@@ -44,6 +44,7 @@ export interface StrokeElement extends BaseElement {
   color: string;
   size: number;
   eraser?: boolean;
+  pathData?: string;
 }
 
 export interface ShapeElement extends BaseElement {

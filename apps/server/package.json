@@ -17,6 +17,7 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "ioredis": "^5.8.2",
+    "perfect-freehand": "^1.2.3",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {

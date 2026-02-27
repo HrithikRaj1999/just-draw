@@ -45,6 +45,7 @@ export interface WhiteboardCanvasHandle {
   exportJson: () => void;
   importJson: () => void;
   clearBoard: () => void;
+  getSnapshot: () => string | null;
 }
 
 const SHAPE_TOOLS = new Set<DrawingTool>([
@@ -95,6 +96,7 @@ const WhiteboardCanvas = forwardRef<
     },
     ref,
   ) => {
+    const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const draftRef = useRef<WhiteboardElement | null>(null);
@@ -111,6 +113,9 @@ const WhiteboardCanvas = forwardRef<
       startX: number;
       startY: number;
     } | null>(null);
+
+    const [camera, setCamera] = useState({ x: 0, y: 0 });
+    const cameraRef = useRef(camera);
 
     const [selectedElementId, setSelectedElementId] = useState<string | null>(
       null,
@@ -226,6 +231,11 @@ const WhiteboardCanvas = forwardRef<
       (event: PointerEvent) => {
         if (textPromptData) {
           // If we click anywhere else, save the current text prompt
+
+          // Verify we aren't just clicking inside the textarea itself. We can check the event target.
+          if ((event.target as HTMLElement).tagName === "TEXTAREA") {
+            return;
+          }
           handleTextSubmit(textPromptValue);
           return;
         }
@@ -238,10 +248,12 @@ const WhiteboardCanvas = forwardRef<
           return;
         }
 
-        const point = pointerFromEvent(event, canvas);
+        const point = pointerFromEvent(event, canvas, cameraRef.current);
         emitPresence(point.x, point.y, true);
 
         if (tool === "hand") {
+          pointerActiveRef.current = true;
+          canvas.setPointerCapture(event.pointerId);
           return;
         }
 
@@ -341,10 +353,26 @@ const WhiteboardCanvas = forwardRef<
           return;
         }
 
-        const point = pointerFromEvent(event, canvas);
+        const point = pointerFromEvent(event, canvas, cameraRef.current);
         emitPresence(point.x, point.y);
 
         if (!pointerActiveRef.current) {
+          return;
+        }
+
+        if (tool === "hand") {
+          setCamera((prev) => {
+            const next = {
+              x: prev.x + event.movementX,
+              y: prev.y + event.movementY,
+            };
+            cameraRef.current = next;
+            requestAnimationFrame(() => {
+              drawBackground();
+              drawActive();
+            });
+            return next;
+          });
           return;
         }
 
@@ -375,7 +403,8 @@ const WhiteboardCanvas = forwardRef<
             }));
           }
 
-          setDraft(moved);
+          draftRef.current = moved;
+          drawActive();
           maybeBroadcastDraft(moved);
           return;
         }
@@ -390,27 +419,26 @@ const WhiteboardCanvas = forwardRef<
         }
 
         if (draftRef.current.type === "stroke") {
-          const next: WhiteboardElement = {
-            ...draftRef.current,
-            updatedAt: Date.now(),
-            points: [
-              ...draftRef.current.points,
-              { x: point.x, y: point.y, pressure: point.pressure },
-            ],
-          };
-          setDraft(next);
-          maybeBroadcastDraft(next);
+          draftRef.current.points.push({
+            x: point.x,
+            y: point.y,
+            pressure: point.pressure,
+          });
+          draftRef.current.updatedAt = Date.now();
+          drawActive();
+          maybeBroadcastDraft(draftRef.current);
           return;
         }
 
         if (draftRef.current.type === "shape") {
-          const next: WhiteboardElement = {
-            ...draftRef.current,
-            updatedAt: Date.now(),
-            to: { x: point.x, y: point.y, pressure: point.pressure },
+          draftRef.current.to = {
+            x: point.x,
+            y: point.y,
+            pressure: point.pressure,
           };
-          setDraft(next);
-          maybeBroadcastDraft(next);
+          draftRef.current.updatedAt = Date.now();
+          drawActive();
+          maybeBroadcastDraft(draftRef.current);
         }
       },
       [
@@ -453,23 +481,51 @@ const WhiteboardCanvas = forwardRef<
     }, [onUpsertElement, setDraft, tool, onActionComplete]);
 
     useEffect(() => {
+      const bgCanvas = bgCanvasRef.current;
       const canvas = canvasRef.current;
-      if (!canvas) {
+      if (!canvas || !bgCanvas) {
         return;
       }
+
+      const handleWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        setCamera((prev) => {
+          const next = { x: prev.x - e.deltaX, y: prev.y - e.deltaY };
+          cameraRef.current = next;
+          requestAnimationFrame(() => {
+            drawBackground();
+            drawActive();
+          });
+          return next;
+        });
+      };
+
+      const handleDoubleClick = (e: MouseEvent) => {
+        const point = pointerFromEvent(e, canvas, cameraRef.current);
+        // Spawns a text prompt implicitly exactly where you double clicked
+        setTextPromptData({
+          x: point.x,
+          y: point.y,
+          fontSize: Math.max(14, strokeSize * 4),
+        });
+      };
 
       canvas.addEventListener("pointerdown", handlePointerDown);
       canvas.addEventListener("pointermove", handlePointerMove);
       canvas.addEventListener("pointerup", finalizeDraft);
       canvas.addEventListener("pointercancel", finalizeDraft);
+      canvas.addEventListener("dblclick", handleDoubleClick);
+      canvas.addEventListener("wheel", handleWheel, { passive: false });
 
       return () => {
         canvas.removeEventListener("pointerdown", handlePointerDown);
         canvas.removeEventListener("pointermove", handlePointerMove);
         canvas.removeEventListener("pointerup", finalizeDraft);
         canvas.removeEventListener("pointercancel", finalizeDraft);
+        canvas.removeEventListener("dblclick", handleDoubleClick);
+        canvas.removeEventListener("wheel", handleWheel as any);
       };
-    }, [finalizeDraft, handlePointerDown, handlePointerMove]);
+    }, [finalizeDraft, handlePointerDown, handlePointerMove, strokeSize]);
 
     const committedElements = useMemo(() => {
       if (!draftElement) {
@@ -480,30 +536,39 @@ const WhiteboardCanvas = forwardRef<
       );
     }, [draftElement, elements]);
 
-    const drawBoard = useCallback(() => {
+    const drawBackground = useCallback(() => {
+      const bgCanvas = bgCanvasRef.current;
+      if (!bgCanvas) return;
+      const ctx = bgCanvas.getContext("2d");
+      if (!ctx) return;
+      clearCanvas(ctx, bgCanvas.width, bgCanvas.height);
+      ctx.save();
+      ctx.translate(cameraRef.current.x, cameraRef.current.y);
+      drawElements(ctx, committedElements, undefined, null);
+      ctx.restore();
+    }, [committedElements]);
+
+    const drawActive = useCallback(() => {
       const canvas = canvasRef.current;
-      if (!canvas) {
-        return;
-      }
-
+      if (!canvas) return;
       const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        return;
-      }
+      if (!ctx) return;
 
-      clearCanvas(ctx, canvas.width, canvas.height);
-      drawElements(
-        ctx,
-        committedElements,
-        draftElement ?? undefined,
-        selectedElementId,
-      );
-    }, [committedElements, draftElement, selectedElementId]);
+      // Clear active canvas and let background shine through.
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const draft = draftRef.current;
+      ctx.save();
+      ctx.translate(cameraRef.current.x, cameraRef.current.y);
+      drawElements(ctx, [], draft ?? undefined, selectedElementId);
+      ctx.restore();
+    }, [selectedElementId]);
 
     useEffect(() => {
       const container = containerRef.current;
+      const bgCanvas = bgCanvasRef.current;
       const canvas = canvasRef.current;
-      if (!container || !canvas) {
+      if (!container || !canvas || !bgCanvas) {
         return;
       }
 
@@ -513,19 +578,27 @@ const WhiteboardCanvas = forwardRef<
         const height = Math.max(1, rect.height);
         const ratio = window.devicePixelRatio || 1;
 
+        bgCanvas.width = Math.floor(width * ratio);
+        bgCanvas.height = Math.floor(height * ratio);
+        bgCanvas.style.width = `${width}px`;
+        bgCanvas.style.height = `${height}px`;
+
         canvas.width = Math.floor(width * ratio);
         canvas.height = Math.floor(height * ratio);
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
 
+        const bgCtx = bgCanvas.getContext("2d");
         const ctx = canvas.getContext("2d");
-        if (!ctx) {
+        if (!ctx || !bgCtx) {
           return;
         }
+        bgCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
         ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-        // draw synchronously during the resize frame to prevent flashing
-        drawBoard();
+        // draw synchronously during the resize frame
+        drawBackground();
+        drawActive();
       };
 
       resize();
@@ -536,11 +609,15 @@ const WhiteboardCanvas = forwardRef<
         observer.disconnect();
         window.removeEventListener("resize", resize);
       };
-    }, [drawBoard]);
+    }, [drawBackground, drawActive]);
 
     useEffect(() => {
-      drawBoard();
-    }, [drawBoard]);
+      drawBackground();
+    }, [drawBackground]);
+
+    useEffect(() => {
+      drawActive();
+    }); // Needs to draw any time a re-render updates selections or external states
 
     useImperativeHandle(
       ref,
@@ -600,6 +677,32 @@ const WhiteboardCanvas = forwardRef<
           setDraft(null);
           onActionComplete?.();
         },
+        getSnapshot: () => {
+          const bgCanvas = bgCanvasRef.current;
+          if (!bgCanvas || bgCanvas.width === 0 || bgCanvas.height === 0)
+            return null;
+
+          // Create offscreen canvas for a lightweight 20% scaled thumbnail
+          const offscreen = document.createElement("canvas");
+          const scale = 0.2;
+          const targetWidth = Math.max(1, Math.floor(bgCanvas.width * scale));
+          const targetHeight = Math.max(1, Math.floor(bgCanvas.height * scale));
+
+          offscreen.width = targetWidth;
+          offscreen.height = targetHeight;
+          const ctx = offscreen.getContext("2d");
+          if (!ctx) return null;
+
+          try {
+            // Draw background applying current camera bounds logic so the thumbnail captures the *visible* area
+            // However, it's a thumbnail. We will just raw draw the canvas.
+            ctx.drawImage(bgCanvas, 0, 0, offscreen.width, offscreen.height);
+            return offscreen.toDataURL("image/webp", 0.5);
+          } catch (e) {
+            console.error("Failed to capture snapshot:", e);
+            return null;
+          }
+        },
       }),
       [elements, onReplaceBoard, setDraft, onActionComplete],
     );
@@ -609,13 +712,28 @@ const WhiteboardCanvas = forwardRef<
     );
 
     return (
-      <div ref={containerRef} className="v2-board-container">
+      <div
+        ref={containerRef}
+        className="v2-board-container"
+        style={{ width: "100%", height: "100%" }}
+      >
+        <canvas
+          ref={bgCanvasRef}
+          className="v2-board-canvas"
+          style={{ position: "absolute", top: 0, left: 0, zIndex: 0 }}
+        />
         <canvas
           ref={canvasRef}
           className="v2-board-canvas"
-          style={{ cursor: cursorForTool(tool) }}
+          style={{
+            cursor: cursorForTool(tool),
+            position: "absolute",
+            top: 0,
+            left: 0,
+            zIndex: 1,
+          }}
         />
-        <div className="v2-cursor-layer">
+        <div className="v2-cursor-layer" style={{ zIndex: 2 }}>
           {remoteCursors.map((participant) => {
             const cursor = participant.cursor;
             if (!cursor) {
@@ -645,8 +763,8 @@ const WhiteboardCanvas = forwardRef<
             autoFocus
             style={{
               position: "absolute",
-              left: `${textPromptData.x}px`,
-              top: `${textPromptData.y}px`,
+              left: `${textPromptData.x + camera.x}px`,
+              top: `${textPromptData.y + camera.y}px`,
               font: `${textPromptData.fontSize}px "Segoe UI", sans-serif`,
               color: strokeColor,
               margin: 0,

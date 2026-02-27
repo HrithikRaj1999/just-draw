@@ -7,7 +7,18 @@ import type {
   WhiteboardElement,
 } from "../types/whiteboard";
 
-const BG_COLOR = "#ffffff";
+const isDarkMode = () =>
+  typeof document !== "undefined" &&
+  document.documentElement.classList.contains("dark");
+
+const getThemeColor = (color: string) => {
+  if (!isDarkMode()) return color;
+  // If the user selected the default Slate-900 black, invert it to Slate-50 so it's visible on dark canvases
+  if (color === "#0f172a" || color === "#111827") {
+    return "#f8fafc";
+  }
+  return color;
+};
 
 const getStrokePath = (stroke: number[][]): string => {
   if (!stroke.length) {
@@ -56,7 +67,7 @@ const drawArrowHead = (ctx: CanvasRenderingContext2D, shape: ShapeElement) => {
     shape.to.y - size * Math.sin(angle + Math.PI / 6),
   );
   ctx.closePath();
-  ctx.fillStyle = shape.strokeColor;
+  ctx.fillStyle = getThemeColor(shape.strokeColor);
   ctx.fill();
 };
 
@@ -71,17 +82,22 @@ const drawStroke = (
     return;
   }
 
-  const stroke = getStroke(
-    element.points.map((point) => [point.x, point.y, point.pressure ?? 0.5]),
-    {
-      size: element.size,
-      thinning: 0.5,
-      smoothing: 0.6,
-      streamline: 0.55,
-      simulatePressure: true,
-    },
-  );
-  const pathData = getStrokePath(stroke);
+  let pathData = element.pathData || "";
+
+  if (!pathData) {
+    const stroke = getStroke(
+      element.points.map((point) => [point.x, point.y, point.pressure ?? 0.5]),
+      {
+        size: element.size,
+        thinning: 0.5,
+        smoothing: 0.85,
+        streamline: 0.85,
+        simulatePressure: true,
+      },
+    );
+    pathData = getStrokePath(stroke);
+  }
+
   if (!pathData) {
     return;
   }
@@ -90,7 +106,7 @@ const drawStroke = (
   ctx.globalCompositeOperation = element.eraser
     ? "destination-out"
     : "source-over";
-  ctx.fillStyle = element.color;
+  ctx.fillStyle = getThemeColor(element.color);
   ctx.fill(new Path2D(pathData));
   ctx.restore();
 };
@@ -106,9 +122,12 @@ const drawShape = (
 
   const { left, top, width, height } = normalizeShape(element);
   const options = {
-    stroke: element.strokeColor,
+    stroke: getThemeColor(element.strokeColor),
     strokeWidth: element.strokeWidth,
-    fill: element.fillColor,
+    fill:
+      element.fillColor === "transparent"
+        ? "transparent"
+        : getThemeColor(element.fillColor || "transparent"),
     fillStyle: "solid",
     roughness: 0,
     seed: element.createdAt || 1,
@@ -160,7 +179,7 @@ const drawShape = (
     );
     // Top cylinder
     roughCanvas.ellipse(cx, top + ry, width, ry * 2, options);
-    // Bottom cylinder (arc approximated by an ellipse portion overlay or a polygon if needed, relying on arc here)
+    // Bottom cylinder
     roughCanvas.arc(
       cx,
       top + height - ry,
@@ -174,100 +193,91 @@ const drawShape = (
     return;
   }
 
-  if (element.shape === "balancer") {
-    roughCanvas.rectangle(left, top, width, height, options);
-    ctx.font = `bold ${Math.max(12, Math.min(width, height) * 0.4)}px "Segoe UI", sans-serif`;
-    ctx.fillStyle = element.strokeColor;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("LB", left + width / 2, top + height / 2);
-    return;
-  }
-
-  if (element.shape === "computer") {
-    const monitorHeight = height * 0.7;
-    const standHeight = height * 0.2;
-    // Monitor
-    roughCanvas.rectangle(left, top, width, monitorHeight, options);
-    // Stand
-    roughCanvas.line(
-      left + width * 0.4,
-      top + monitorHeight,
-      left + width * 0.6,
-      top + monitorHeight,
-      options,
-    );
-    roughCanvas.line(
-      left + width * 0.5,
-      top + monitorHeight,
-      left + width * 0.5,
-      top + monitorHeight + standHeight,
-      options,
-    );
-    // Keyboard base
-    roughCanvas.line(
-      left + width * 0.2,
-      top + monitorHeight + standHeight,
-      left + width * 0.8,
-      top + monitorHeight + standHeight,
-      options,
-    );
-    return;
-  }
-
   if (element.shape === "server") {
-    const rackHeight = height / 3;
+    // Rack server with 3 slots
     roughCanvas.rectangle(left, top, width, height, options);
     roughCanvas.line(
       left,
-      top + rackHeight,
+      top + height * 0.33,
       left + width,
-      top + rackHeight,
+      top + height * 0.33,
       options,
     );
     roughCanvas.line(
       left,
-      top + rackHeight * 2,
+      top + height * 0.66,
       left + width,
-      top + rackHeight * 2,
+      top + height * 0.66,
       options,
     );
-    // Add tiny circle indicator lights
+    // Add little lights/buttons
     roughCanvas.circle(
-      left + width * 0.1,
-      top + rackHeight * 0.5,
-      Math.min(width, height) * 0.05,
-      options,
-    );
-    roughCanvas.circle(
-      left + width * 0.1,
-      top + rackHeight * 1.5,
-      Math.min(width, height) * 0.05,
+      left + width * 0.8,
+      top + height * 0.16,
+      Math.min(width, height) * 0.1,
       options,
     );
     roughCanvas.circle(
-      left + width * 0.1,
-      top + rackHeight * 2.5,
-      Math.min(width, height) * 0.05,
+      left + width * 0.8,
+      top + height * 0.5,
+      Math.min(width, height) * 0.1,
+      options,
+    );
+    roughCanvas.circle(
+      left + width * 0.8,
+      top + height * 0.83,
+      Math.min(width, height) * 0.1,
       options,
     );
     return;
   }
 
   if (element.shape === "client") {
-    // Smartphone shape (tall rectangle with small button)
-    roughCanvas.rectangle(
-      left,
-      top,
-      width,
-      height,
-      Object.assign({}, options, { fill: undefined }),
-    );
-    const btnSize = Math.min(width, height) * 0.1;
+    // Smartphone/tablet shape
+    roughCanvas.rectangle(left, top, width, height, options); // Could be rounded rect strictly, but rough rectangle suffices
+    // Home button
     roughCanvas.circle(
       left + width / 2,
-      top + height - btnSize * 1.5,
-      btnSize,
+      top + height * 0.9,
+      Math.min(width, height) * 0.1,
+      options,
+    );
+    // Inner screen
+    roughCanvas.rectangle(
+      left + width * 0.1,
+      top + height * 0.1,
+      width * 0.8,
+      height * 0.7,
+      options,
+    );
+    return;
+  }
+
+  if (element.shape === "computer") {
+    // Laptop/monitor shape
+    const monitorHeight = height * 0.75;
+    roughCanvas.rectangle(left, top, width, monitorHeight, options); // Screen
+    roughCanvas.polygon(
+      [
+        [left + width * 0.1, top + monitorHeight],
+        [left - width * 0.1, top + height],
+        [left + width * 1.1, top + height],
+        [left + width * 0.9, top + monitorHeight],
+      ],
+      options,
+    ); // Keyboard base
+    return;
+  }
+
+  if (element.shape === "balancer") {
+    // Diamond shape for load balancer
+    roughCanvas.polygon(
+      [
+        [left + width / 2, top],
+        [left + width, top + height / 2],
+        [left + width / 2, top + height],
+        [left, top + height / 2],
+      ],
       options,
     );
     return;
@@ -283,7 +293,7 @@ const drawText = (
   }
   ctx.save();
   ctx.font = `${Math.max(12, element.fontSize)}px "Segoe UI", sans-serif`;
-  ctx.fillStyle = element.color;
+  ctx.fillStyle = getThemeColor(element.color);
   ctx.textBaseline = "top";
   ctx.textAlign = "left";
   // The text tool uses a textarea for input where the newlines might be present. Split and render.
@@ -338,8 +348,7 @@ export const clearCanvas = (
 ) => {
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = BG_COLOR;
-  ctx.fillRect(0, 0, width, height);
+  ctx.clearRect(0, 0, width, height);
   ctx.restore();
 };
 
@@ -386,13 +395,14 @@ export const drawElements = (
 };
 
 export const pointerFromEvent = (
-  event: PointerEvent,
+  event: PointerEvent | MouseEvent,
   canvas: HTMLCanvasElement,
+  camera: { x: number; y: number },
 ): Point => {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
-    pressure: event.pressure || 0.5,
+    x: event.clientX - rect.left - camera.x,
+    y: event.clientY - rect.top - camera.y,
+    pressure: (event as PointerEvent).pressure || 0.5,
   };
 };

@@ -27,16 +27,23 @@ interface SessionState {
 
 const WhiteboardApp = () => {
   const [session, setSession] = useState<SessionState | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">(
+    () => (localStorage.getItem("theme") as "light" | "dark") || "dark",
+  );
   const [tool, setTool] = useState<DrawingTool>("pen");
   const [strokeColor, setStrokeColor] = useState("#111827");
   const [strokeSize, setStrokeSize] = useState(4);
   const canvasRef = useRef<WhiteboardCanvasHandle | null>(null);
 
   const [history, setHistory] = useState<
-    Array<Record<string, WhiteboardElement>>
+    Array<{
+      snapshot: string | null;
+      elements: Record<string, WhiteboardElement>;
+    }>
   >([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyInitialized = useRef(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   useEffect(() => {
     setSession({
@@ -44,6 +51,16 @@ const WhiteboardApp = () => {
       user: getOrCreateUser(),
     });
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   const roomId = session?.roomId ?? "";
   const user = session?.user;
@@ -72,26 +89,33 @@ const WhiteboardApp = () => {
       !historyInitialized.current &&
       Object.keys(elements).length > 0
     ) {
-      setHistory([elements]);
-      setHistoryIndex(0);
-      historyInitialized.current = true;
+      setTimeout(() => {
+        const snapshot = canvasRef.current?.getSnapshot() || null;
+        setHistory([{ snapshot, elements }]);
+        setHistoryIndex(0);
+        historyInitialized.current = true;
+      }, 100);
     }
   }, [connected, elements]);
 
   const handleActionComplete = useCallback(() => {
-    setHistory((prev) => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push({ ...elements });
-      return newHistory;
-    });
-    setHistoryIndex((prev) => prev + 1);
+    // Wait for the React component to draw to the invisible background layer
+    setTimeout(() => {
+      setHistory((prev) => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        const snapshot = canvasRef.current?.getSnapshot() || null;
+        newHistory.push({ snapshot, elements: { ...elements } });
+        return newHistory;
+      });
+      setHistoryIndex((prev) => prev + 1);
+    }, 50);
   }, [elements, historyIndex]);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      replaceBoard(history[newIndex]);
+      replaceBoard(history[newIndex].elements);
     }
   }, [history, historyIndex, replaceBoard]);
 
@@ -115,6 +139,23 @@ const WhiteboardApp = () => {
     updatePresence(tool);
   }, [session, tool, updatePresence]);
 
+  const handleClearHistory = useCallback(() => {
+    if (
+      window.confirm(
+        "Are you sure you want to delete all history? This cannot be undone.",
+      )
+    ) {
+      setHistory([
+        {
+          snapshot: canvasRef.current?.getSnapshot() || null,
+          elements: { ...elements },
+        },
+      ]);
+      setHistoryIndex(0);
+      setIsHistoryModalOpen(false);
+    }
+  }, [elements]);
+
   if (!session || !user) {
     return <main className="v2-loading">Preparing whiteboard...</main>;
   }
@@ -136,9 +177,13 @@ const WhiteboardApp = () => {
             strokeColor={strokeColor}
             strokeSize={strokeSize}
             roomId={roomId}
+            theme={theme}
             onToolChange={setTool}
             onStrokeColorChange={setStrokeColor}
             onStrokeSizeChange={setStrokeSize}
+            onThemeToggle={() =>
+              setTheme((t) => (t === "light" ? "dark" : "light"))
+            }
             onClear={() => canvasRef.current?.clearBoard()}
             onDownload={() => canvasRef.current?.downloadPng()}
             onExportJson={() => canvasRef.current?.exportJson()}
@@ -162,66 +207,231 @@ const WhiteboardApp = () => {
 
           <RoomInfo roomId={roomId} boardVersion={boardVersion} />
 
-          <div
+          {/* Floating Minimized Button */}
+          <button
+            onClick={() => setIsHistoryModalOpen(true)}
             style={{
               position: "absolute",
               bottom: "20px",
               left: "20px",
-              background: "var(--bg-canvas)",
+              background: "var(--glass-bg)",
+              backdropFilter: "var(--glass-blur)",
               border: "1px solid var(--border-color)",
               borderRadius: "8px",
-              padding: "10px",
-              maxHeight: "300px",
-              overflowY: "auto",
+              padding: "8px 16px",
               zIndex: 100,
+              boxShadow: "var(--glass-shadow)",
+              cursor: "pointer",
               display: "flex",
-              flexDirection: "column",
-              gap: "4px",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-              pointerEvents: "auto",
+              alignItems: "center",
+              gap: "8px",
+              fontFamily: "var(--font-sans)",
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              color: "var(--text-main)",
             }}
           >
-            <h3
+            History & Undo ({historyIndex}/{Math.max(0, history.length - 1)})
+          </button>
+
+          {/* Centered Modal Overlay */}
+          {isHistoryModalOpen && (
+            <div
+              className="v2-modal-backdrop"
+              onClick={() => setIsHistoryModalOpen(false)}
               style={{
-                margin: "0 0 8px 0",
-                fontSize: "12px",
-                color: "var(--text-main)",
-                textTransform: "uppercase",
-                fontWeight: 600,
+                position: "fixed",
+                inset: 0,
+                backgroundColor: "rgba(0, 0, 0, 0.4)",
+                backdropFilter: "blur(4px)",
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "2rem",
               }}
             >
-              History Stack
-            </h3>
-            {history.map((snap, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setHistoryIndex(idx);
-                  replaceBoard(snap);
-                }}
+              <div
+                className="v2-modal-content"
+                onClick={(e) => e.stopPropagation()}
                 style={{
-                  padding: "4px 8px",
-                  fontSize: "12px",
-                  borderRadius: "4px",
-                  border: "none",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  background:
-                    idx === historyIndex
-                      ? "var(--accent-color)"
-                      : "transparent",
-                  color: idx === historyIndex ? "white" : "var(--text-main)",
+                  background: "var(--bg-canvas)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "16px",
+                  width: "100%",
+                  maxWidth: "800px",
+                  maxHeight: "80vh",
+                  display: "flex",
+                  flexDirection: "column",
+                  boxShadow:
+                    "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                  overflow: "hidden",
                 }}
               >
-                Snapshot {idx} {idx === 0 && "(Initial)"}
-              </button>
-            ))}
-            {history.length === 0 && (
-              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                No history
+                <div
+                  style={{
+                    padding: "1.5rem",
+                    borderBottom: "1px solid var(--border-color)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: "1.25rem",
+                      color: "var(--text-main)",
+                    }}
+                  >
+                    Session History
+                  </h2>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <button
+                      onClick={handleClearHistory}
+                      style={{
+                        background: "var(--accent-color)",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "0.9rem",
+                        color: "white",
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        marginRight: "16px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Purge History
+                    </button>
+                    <button
+                      onClick={() => setIsHistoryModalOpen(false)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "1.5rem",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ padding: "1.5rem", overflowY: "auto", flex: 1 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(180px, 1fr))",
+                      gap: "1rem",
+                    }}
+                  >
+                    {history.map((snap, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setHistoryIndex(idx);
+                          replaceBoard(snap.elements);
+                          setIsHistoryModalOpen(false);
+                        }}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          background:
+                            idx === historyIndex
+                              ? "var(--glass-bg)"
+                              : "transparent",
+                          border: `2px solid ${idx === historyIndex ? "var(--accent-color)" : "var(--border-color)"}`,
+                          borderRadius: "8px",
+                          overflow: "hidden",
+                          cursor: "pointer",
+                          padding: 0,
+                          textAlign: "left",
+                          transition: "border-color 0.2s, transform 0.2s",
+                          pointerEvents: "auto",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "120px",
+                            width: "100%",
+                            background: "var(--bg-canvas)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderBottom: "1px solid var(--border-color)",
+                          }}
+                        >
+                          {snap.snapshot ? (
+                            <img
+                              src={snap.snapshot}
+                              alt={`Snapshot ${idx}`}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "contain",
+                              }}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              No Image
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            background:
+                              idx === historyIndex
+                                ? "var(--accent-color)"
+                                : "transparent",
+                            color:
+                              idx === historyIndex
+                                ? "white"
+                                : "var(--text-main)",
+                            width: "100%",
+                          }}
+                        >
+                          <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>
+                            Step {idx}
+                          </span>
+                          {idx === 0 && (
+                            <span
+                              style={{
+                                fontSize: "0.7rem",
+                                opacity: 0.8,
+                                marginLeft: "4px",
+                              }}
+                            >
+                              (Start)
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                    {history.length === 0 && (
+                      <div
+                        style={{ color: "var(--text-muted)", padding: "1rem" }}
+                      >
+                        No history yet. Draw something!
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </section>
       </Suspense>
     </main>

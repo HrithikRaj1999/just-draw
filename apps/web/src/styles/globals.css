@@ -25,19 +25,17 @@
   --font-display: "Outfit", var(--font-sans);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-color: #0b0f19;
-    --bg-canvas: #0f1423;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --accent-color: #3b82f6;
-    --border-color: rgba(255, 255, 255, 0.08);
-    --glass-bg: rgba(20, 25, 38, 0.75);
-    --glass-border: rgba(255, 255, 255, 0.05);
-    --glass-shadow:
-      0 10px 40px -10px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.1);
-  }
+:root.dark {
+  --bg-color: #0b0f19;
+  --bg-canvas: #0f1423;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-color: #3b82f6;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(20, 25, 38, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-shadow:
+    0 10px 40px -10px rgba(0, 0, 0, 0.4), 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 html,
@@ -55,6 +53,9 @@ body {
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 * {

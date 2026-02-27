@@ -19,6 +19,8 @@ import {
   Smartphone,
   Laptop,
   Component,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 interface ToolbarProps {
@@ -26,9 +28,11 @@ interface ToolbarProps {
   strokeColor: string;
   strokeSize: number;
   roomId: string;
+  theme: "light" | "dark";
   onToolChange: (tool: DrawingTool) => void;
   onStrokeColorChange: (color: string) => void;
   onStrokeSizeChange: (size: number) => void;
+  onThemeToggle: () => void;
   onClear: () => void;
   onDownload: () => void;
   onExportJson: () => void;
@@ -67,9 +71,11 @@ const Toolbar = ({
   strokeColor,
   strokeSize,
   roomId,
+  theme,
   onToolChange,
   onStrokeColorChange,
   onStrokeSizeChange,
+  onThemeToggle,
   onClear,
   onDownload,
   onExportJson,
@@ -132,6 +138,41 @@ const Toolbar = ({
               }}
             />{" "}
             Invite Collaborators
+          </button>
+
+          <hr
+            style={{
+              borderColor: "var(--border-color)",
+              margin: "4px 0",
+              opacity: 0.5,
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={onThemeToggle}
+            style={{ color: theme === "dark" ? "#fde047" : "#0f172a" }}
+          >
+            {theme === "dark" ? (
+              <Sun
+                size={16}
+                style={{
+                  display: "inline",
+                  marginRight: 8,
+                  verticalAlign: "text-bottom",
+                }}
+              />
+            ) : (
+              <Moon
+                size={16}
+                style={{
+                  display: "inline",
+                  marginRight: 8,
+                  verticalAlign: "text-bottom",
+                }}
+              />
+            )}
+            {theme === "dark" ? "Light Mode" : "Dark Mode"}
           </button>
         </div>
       </details>
