@@ -11,9 +11,12 @@ const USER_COLORS = [
 ];
 
 const randomSegment = (): string =>
-  Math.random().toString(36).replace(/[^a-z0-9]/gi, "").slice(2, 8);
+  Math.floor(100 + Math.random() * 900).toString() +
+  "-" +
+  Math.floor(100 + Math.random() * 900).toString();
 
-const randomName = (): string => `Guest-${randomSegment()}`;
+const randomName = (): string =>
+  `Engineer ${Math.floor(10 + Math.random() * 90)}`;
 
 const randomColor = (): string =>
   USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)];
@@ -22,7 +25,7 @@ export const createId = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  return `${Date.now().toString(36)}-${randomSegment()}`;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
 export const getOrCreateUser = (): UserIdentity => {
@@ -53,6 +56,13 @@ export const getOrCreateUser = (): UserIdentity => {
   };
   window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(created));
   return created;
+};
+
+export const updateUserName = (name: string): void => {
+  if (typeof window === "undefined") return;
+  const user = getOrCreateUser();
+  user.name = name;
+  window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
 };
 
 export const getOrCreateRoomId = (): string => {

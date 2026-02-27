@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
+    "braces": "^3.0.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "ioredis": "^5.8.2",

@@ -1,4 +1,4 @@
-# Realtime Whiteboard Refactor (V2)
+# Delineation
 
 This repository now includes a new modular V2 refactor focused on:
 

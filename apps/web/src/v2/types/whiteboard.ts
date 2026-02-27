@@ -6,10 +6,24 @@ export type DrawingTool =
   | "arrow"
   | "rectangle"
   | "ellipse"
+  | "db"
+  | "server"
+  | "client"
+  | "computer"
+  | "balancer"
   | "text"
   | "hand";
 
-export type ShapeKind = "line" | "arrow" | "rectangle" | "ellipse";
+export type ShapeKind =
+  | "line"
+  | "arrow"
+  | "rectangle"
+  | "ellipse"
+  | "db"
+  | "server"
+  | "client"
+  | "computer"
+  | "balancer";
 
 export interface Point {
   x: number;

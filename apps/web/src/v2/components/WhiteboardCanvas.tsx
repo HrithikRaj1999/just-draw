@@ -8,7 +8,12 @@ import {
   useState,
 } from "react";
 import { createId } from "../lib/identity";
-import { clearCanvas, drawElements, pointerFromEvent } from "../canvas/render";
+import {
+  clearCanvas,
+  drawElements,
+  getElementBounds,
+  pointerFromEvent,
+} from "../canvas/render";
 import type {
   DrawingTool,
   PresenceState,
@@ -26,13 +31,19 @@ interface WhiteboardCanvasProps {
   elements: Record<string, WhiteboardElement>;
   participants: PresenceState[];
   onUpsertElement: (element: WhiteboardElement) => void;
+  onDeleteElement: (elementId: string) => void;
   onReplaceBoard: (elements: Record<string, WhiteboardElement>) => void;
-  onPresenceUpdate: (tool: DrawingTool, cursor?: { x: number; y: number }) => void;
+  onPresenceUpdate: (
+    tool: DrawingTool,
+    cursor?: { x: number; y: number },
+  ) => void;
+  onActionComplete?: () => void;
 }
 
 export interface WhiteboardCanvasHandle {
   downloadPng: () => void;
   exportJson: () => void;
+  importJson: () => void;
   clearBoard: () => void;
 }
 
@@ -41,11 +52,33 @@ const SHAPE_TOOLS = new Set<DrawingTool>([
   "arrow",
   "rectangle",
   "ellipse",
+  "db",
+  "server",
+  "client",
+  "computer",
+  "balancer",
 ]);
 
-const isShapeTool = (tool: DrawingTool): tool is ShapeKind => SHAPE_TOOLS.has(tool);
+const isShapeTool = (tool: DrawingTool): tool is ShapeKind =>
+  SHAPE_TOOLS.has(tool);
 
-const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProps>(
+const cursorForTool = (tool: DrawingTool): string => {
+  if (tool === "text") {
+    return "text";
+  }
+  if (tool === "hand") {
+    return "grab";
+  }
+  if (tool === "select") {
+    return "default";
+  }
+  return "crosshair";
+};
+
+const WhiteboardCanvas = forwardRef<
+  WhiteboardCanvasHandle,
+  WhiteboardCanvasProps
+>(
   (
     {
       tool,
@@ -55,10 +88,12 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
       elements,
       participants,
       onUpsertElement,
+      onDeleteElement,
       onReplaceBoard,
       onPresenceUpdate,
+      onActionComplete,
     },
-    ref
+    ref,
   ) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -68,9 +103,19 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
     const lastPresenceEmitRef = useRef(0);
 
     const [draftElement, setDraftElement] = useState<WhiteboardElement | null>(
-      null
+      null,
     );
-    const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 });
+
+    const [dragData, setDragData] = useState<{
+      element: WhiteboardElement;
+      startX: number;
+      startY: number;
+    } | null>(null);
+
+    const [selectedElementId, setSelectedElementId] = useState<string | null>(
+      null,
+    );
+    const [textPromptValue, setTextPromptValue] = useState("");
 
     const setDraft = useCallback((element: WhiteboardElement | null) => {
       draftRef.current = element;
@@ -86,7 +131,7 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         lastPresenceEmitRef.current = now;
         onPresenceUpdate(tool, { x, y });
       },
-      [onPresenceUpdate, tool]
+      [onPresenceUpdate, tool],
     );
 
     const maybeBroadcastDraft = useCallback(
@@ -98,7 +143,31 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         lastElementEmitRef.current = now;
         onUpsertElement(element);
       },
-      [onUpsertElement]
+      [onUpsertElement],
+    );
+
+    const tryEraseElementAt = useCallback(
+      (x: number, y: number) => {
+        // iterate backwards to erase top-most element first
+        const allElements = Object.values(elements);
+        for (let i = allElements.length - 1; i >= 0; i--) {
+          const element = allElements[i];
+          const bounds = getElementBounds(element);
+          // add 5px padding to make it easier to hit
+          if (
+            x >= bounds.left - 5 &&
+            x <= bounds.left + bounds.width + 5 &&
+            y >= bounds.top - 5 &&
+            y <= bounds.top + bounds.height + 5
+          ) {
+            onDeleteElement(element.id);
+            onActionComplete?.();
+            return true; // only delete one matched element per check
+          }
+        }
+        return false;
+      },
+      [elements, onDeleteElement, onActionComplete],
     );
 
     const createStrokeElement = useCallback(
@@ -116,11 +185,51 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
           eraser,
         };
       },
-      [strokeColor, strokeSize, user.id]
+      [strokeColor, strokeSize, user.id],
+    );
+
+    const [textPromptData, setTextPromptData] = useState<{
+      x: number;
+      y: number;
+      fontSize: number;
+    } | null>(null);
+
+    const handleTextSubmit = useCallback(
+      (text: string) => {
+        if (!textPromptData) return;
+        if (text.trim().length > 0) {
+          const now = Date.now();
+          onUpsertElement({
+            id: createId(),
+            type: "text",
+            createdBy: user.id,
+            createdAt: now,
+            updatedAt: now,
+            position: {
+              x: textPromptData.x,
+              y: textPromptData.y,
+              pressure: 0.5,
+            },
+            color: strokeColor,
+            fontSize: textPromptData.fontSize,
+            text: text.trim(),
+          });
+          onActionComplete?.();
+        }
+        setTextPromptData(null);
+        setTextPromptValue("");
+      },
+      [textPromptData, user.id, strokeColor, onUpsertElement, onActionComplete],
     );
 
     const handlePointerDown = useCallback(
       (event: PointerEvent) => {
+        if (textPromptData) {
+          // If we click anywhere else, save the current text prompt
+          handleTextSubmit(textPromptValue);
+          return;
+        }
+
         const canvas = canvasRef.current;
         if (!canvas) {
           return;
@@ -132,26 +241,42 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         const point = pointerFromEvent(event, canvas);
         emitPresence(point.x, point.y, true);
 
-        if (tool === "select" || tool === "hand") {
+        if (tool === "hand") {
           return;
         }
 
-        if (tool === "text") {
-          const text = window.prompt("Enter text");
-          if (!text || text.trim().length === 0) {
-            return;
+        if (tool === "select") {
+          // Find topmost element clicked
+          const allElements = Object.values(elements);
+          for (let i = allElements.length - 1; i >= 0; i--) {
+            const element = allElements[i];
+            const bounds = getElementBounds(element);
+            if (
+              point.x >= bounds.left - 5 &&
+              point.x <= bounds.left + bounds.width + 5 &&
+              point.y >= bounds.top - 5 &&
+              point.y <= bounds.top + bounds.height + 5
+            ) {
+              pointerActiveRef.current = true;
+              canvas.setPointerCapture(event.pointerId);
+              setDragData({
+                element,
+                startX: point.x,
+                startY: point.y,
+              });
+              setSelectedElementId(element.id);
+              return;
+            }
           }
-          const now = Date.now();
-          onUpsertElement({
-            id: createId(),
-            type: "text",
-            createdBy: user.id,
-            createdAt: now,
-            updatedAt: now,
-            position: point,
-            color: strokeColor,
+          setSelectedElementId(null);
+          return; // nothing clicked
+        }
+
+        if (tool === "text") {
+          setTextPromptData({
+            x: point.x,
+            y: point.y,
             fontSize: Math.max(14, strokeSize * 4),
-            text: text.trim(),
           });
           return;
         }
@@ -159,8 +284,13 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         pointerActiveRef.current = true;
         canvas.setPointerCapture(event.pointerId);
 
-        if (tool === "pen" || tool === "eraser") {
-          const stroke = createStrokeElement(point.x, point.y, tool === "eraser");
+        if (tool === "eraser") {
+          tryEraseElementAt(point.x, point.y);
+          return;
+        }
+
+        if (tool === "pen") {
+          const stroke = createStrokeElement(point.x, point.y, false);
           setDraft(stroke);
           maybeBroadcastDraft(stroke, true);
           return;
@@ -179,7 +309,8 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
             to: point,
             strokeColor,
             strokeWidth: strokeSize,
-            fillColor: tool === "line" || tool === "arrow" ? undefined : "transparent",
+            fillColor:
+              tool === "line" || tool === "arrow" ? undefined : "transparent",
           };
           setDraft(shape);
           maybeBroadcastDraft(shape, true);
@@ -195,7 +326,12 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         strokeSize,
         tool,
         user.id,
-      ]
+        tryEraseElementAt,
+        textPromptData,
+        textPromptValue,
+        handleTextSubmit,
+        elements,
+      ],
     );
 
     const handlePointerMove = useCallback(
@@ -208,7 +344,48 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         const point = pointerFromEvent(event, canvas);
         emitPresence(point.x, point.y);
 
-        if (!pointerActiveRef.current || !draftRef.current) {
+        if (!pointerActiveRef.current) {
+          return;
+        }
+
+        if (tool === "select" && dragData) {
+          const dx = point.x - dragData.startX;
+          const dy = point.y - dragData.startY;
+
+          let moved = { ...dragData.element, updatedAt: Date.now() };
+
+          if (moved.type === "shape") {
+            moved.from = {
+              ...moved.from,
+              x: moved.from.x + dx,
+              y: moved.from.y + dy,
+            };
+            moved.to = { ...moved.to, x: moved.to.x + dx, y: moved.to.y + dy };
+          } else if (moved.type === "text") {
+            moved.position = {
+              ...moved.position,
+              x: moved.position.x + dx,
+              y: moved.position.y + dy,
+            };
+          } else if (moved.type === "stroke") {
+            moved.points = moved.points.map((p) => ({
+              ...p,
+              x: p.x + dx,
+              y: p.y + dy,
+            }));
+          }
+
+          setDraft(moved);
+          maybeBroadcastDraft(moved);
+          return;
+        }
+
+        if (tool === "eraser") {
+          tryEraseElementAt(point.x, point.y);
+          return;
+        }
+
+        if (!draftRef.current) {
           return;
         }
 
@@ -236,14 +413,35 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
           maybeBroadcastDraft(next);
         }
       },
-      [emitPresence, maybeBroadcastDraft, setDraft]
+      [
+        emitPresence,
+        maybeBroadcastDraft,
+        setDraft,
+        tool,
+        tryEraseElementAt,
+        dragData,
+      ],
     );
 
     const finalizeDraft = useCallback(() => {
-      if (!pointerActiveRef.current || !draftRef.current) {
+      if (!pointerActiveRef.current) {
         return;
       }
       pointerActiveRef.current = false;
+
+      if (tool === "select") {
+        setDragData(null);
+        if (draftRef.current) {
+          onUpsertElement({ ...draftRef.current, updatedAt: Date.now() });
+          setDraft(null);
+          onActionComplete?.();
+        }
+        return;
+      }
+
+      if (!draftRef.current) {
+        return;
+      }
 
       const finalized: WhiteboardElement = {
         ...draftRef.current,
@@ -251,7 +449,8 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
       };
       onUpsertElement(finalized);
       setDraft(null);
-    }, [onUpsertElement, setDraft]);
+      onActionComplete?.();
+    }, [onUpsertElement, setDraft, tool, onActionComplete]);
 
     useEffect(() => {
       const canvas = canvasRef.current;
@@ -271,6 +470,35 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         canvas.removeEventListener("pointercancel", finalizeDraft);
       };
     }, [finalizeDraft, handlePointerDown, handlePointerMove]);
+
+    const committedElements = useMemo(() => {
+      if (!draftElement) {
+        return Object.values(elements);
+      }
+      return Object.values(elements).filter(
+        (element) => element.id !== draftElement.id,
+      );
+    }, [draftElement, elements]);
+
+    const drawBoard = useCallback(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        return;
+      }
+
+      clearCanvas(ctx, canvas.width, canvas.height);
+      drawElements(
+        ctx,
+        committedElements,
+        draftElement ?? undefined,
+        selectedElementId,
+      );
+    }, [committedElements, draftElement, selectedElementId]);
 
     useEffect(() => {
       const container = containerRef.current;
@@ -295,7 +523,9 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
           return;
         }
         ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-        setCanvasSize({ width, height });
+
+        // draw synchronously during the resize frame to prevent flashing
+        drawBoard();
       };
 
       resize();
@@ -306,29 +536,11 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
         observer.disconnect();
         window.removeEventListener("resize", resize);
       };
-    }, []);
-
-    const committedElements = useMemo(() => {
-      if (!draftElement) {
-        return Object.values(elements);
-      }
-      return Object.values(elements).filter((element) => element.id !== draftElement.id);
-    }, [draftElement, elements]);
+    }, [drawBoard]);
 
     useEffect(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) {
-        return;
-      }
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        return;
-      }
-
-      clearCanvas(ctx, canvasSize.width, canvasSize.height);
-      drawElements(ctx, committedElements, draftElement ?? undefined);
-    }, [canvasSize.height, canvasSize.width, committedElements, draftElement]);
+      drawBoard();
+    }, [drawBoard]);
 
     useImperativeHandle(
       ref,
@@ -354,21 +566,55 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
           link.click();
           URL.revokeObjectURL(url);
         },
+        importJson: () => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "application/json,.json";
+          input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) {
+              return;
+            }
+            try {
+              const text = await file.text();
+              const parsed = JSON.parse(text);
+              if (
+                !parsed ||
+                typeof parsed !== "object" ||
+                Array.isArray(parsed)
+              ) {
+                window.alert("Invalid JSON board format.");
+                return;
+              }
+              onReplaceBoard(parsed as Record<string, WhiteboardElement>);
+              onActionComplete?.();
+            } catch (error) {
+              window.alert("Unable to import JSON file.");
+              console.error(error);
+            }
+          };
+          input.click();
+        },
         clearBoard: () => {
           onReplaceBoard({});
           setDraft(null);
+          onActionComplete?.();
         },
       }),
-      [elements, onReplaceBoard, setDraft]
+      [elements, onReplaceBoard, setDraft, onActionComplete],
     );
 
     const remoteCursors = participants.filter(
-      (participant) => participant.userId !== user.id && participant.cursor
+      (participant) => participant.userId !== user.id && participant.cursor,
     );
 
     return (
       <div ref={containerRef} className="v2-board-container">
-        <canvas ref={canvasRef} className="v2-board-canvas" />
+        <canvas
+          ref={canvasRef}
+          className="v2-board-canvas"
+          style={{ cursor: cursorForTool(tool) }}
+        />
         <div className="v2-cursor-layer">
           {remoteCursors.map((participant) => {
             const cursor = participant.cursor;
@@ -393,9 +639,49 @@ const WhiteboardCanvas = forwardRef<WhiteboardCanvasHandle, WhiteboardCanvasProp
             );
           })}
         </div>
+
+        {textPromptData && (
+          <textarea
+            autoFocus
+            style={{
+              position: "absolute",
+              left: `${textPromptData.x}px`,
+              top: `${textPromptData.y}px`,
+              font: `${textPromptData.fontSize}px "Segoe UI", sans-serif`,
+              color: strokeColor,
+              margin: 0,
+              padding: 0,
+              border: "1px dashed var(--accent-color)",
+              background: "transparent",
+              outline: "none",
+              resize: "none",
+              overflow: "hidden",
+              whiteSpace: "pre",
+              zIndex: 50,
+              minWidth: "20px",
+              minHeight: `${textPromptData.fontSize + 4}px`,
+            }}
+            value={textPromptValue}
+            onChange={(e) => setTextPromptValue(e.target.value)}
+            onBlur={() => handleTextSubmit(textPromptValue)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleTextSubmit(textPromptValue);
+              }
+            }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = "auto";
+              target.style.height = `${target.scrollHeight}px`;
+              target.style.width = "auto";
+              target.style.width = `${Math.max(20, target.scrollWidth)}px`;
+            }}
+          />
+        )}
       </div>
     );
-  }
+  },
 );
 
 WhiteboardCanvas.displayName = "WhiteboardCanvas";

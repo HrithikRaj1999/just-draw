@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -27,6 +28,7 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 TF_DIR = PROJECT_ROOT / "infra" / "terraform"
 DOCKER_COMPOSE_FILE = PROJECT_ROOT / "infra" / "docker" / "docker-compose.local.yml"
 PID_FILE = PROJECT_ROOT / ".pids"
+NPM_COMMAND = "npm.cmd" if os.name == "nt" else "npm"
 
 
 def detect_mode(force_cloud: bool, force_local: bool) -> str:
@@ -64,14 +66,66 @@ def start_process(command: List[str], cwd: Path, env: Optional[Dict[str, str]] =
     )
 
 
-def stop_pid(pid: int) -> None:
+def pid_exists(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        result = run_command(
+            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+            capture=True,
+            check=False,
+        )
+        output = (result.stdout or "").strip()
+        if not output:
+            return False
+        return "No tasks are running" not in output and not output.startswith("INFO:")
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def stop_pid(pid: int) -> bool:
+    if not pid_exists(pid):
+        return False
     try:
         if os.name == "nt":
-            run_command(["taskkill", "/F", "/PID", str(pid)], check=False)
+            run_command(["taskkill", "/F", "/PID", str(pid)], check=False, capture=True)
         else:
             os.kill(pid, signal.SIGTERM)
+        return True
     except Exception:
-        pass
+        return False
+
+
+def pids_listening_on_port(port: int) -> List[int]:
+    if os.name == "nt":
+        result = run_command(["netstat", "-ano", "-p", "tcp"], capture=True, check=False)
+        output = result.stdout or ""
+        pattern = re.compile(rf"^\s*TCP\s+\S+:{port}\s+\S+\s+LISTENING\s+(\d+)\s*$")
+        pids: List[int] = []
+        for line in output.splitlines():
+            match = pattern.match(line)
+            if match:
+                pids.append(int(match.group(1)))
+        return sorted(set(pids))
+
+    result = run_command(["lsof", "-ti", f"tcp:{port}"], capture=True, check=False)
+    output = (result.stdout or "").strip()
+    if not output:
+        return []
+    return sorted({int(pid) for pid in output.splitlines() if pid.strip().isdigit()})
+
+
+def free_port(port: int, label: str) -> None:
+    pids = pids_listening_on_port(port)
+    if not pids:
+        return
+    Logger.warning(f"{label} port {port} is in use. Stopping PID(s): {', '.join(str(pid) for pid in pids)}")
+    for pid in pids:
+        if pid != os.getpid():
+            stop_pid(pid)
 
 
 def docker_compose_up() -> None:
@@ -132,7 +186,7 @@ def start_cloud(desired_count: int) -> None:
     else:
         Logger.warning("Unable to resolve websocket endpoint and VITE_WS_URL is unset.")
 
-    frontend_proc = start_process(["npm", "run", "dev", "--", "--mode", "cloud"], CLIENT_DIR, env=frontend_env)
+    frontend_proc = start_process([NPM_COMMAND, "run", "dev", "--", "--mode", "cloud"], CLIENT_DIR, env=frontend_env)
     save_pid_state(
         {
             "mode": "cloud",
@@ -184,9 +238,14 @@ def start_local() -> None:
         "VITE_WS_URL",
         "ws://localhost:5000",
     )
+    backend_port = int(local_env.get("BACKEND_PORT", local_env.get("PORT", "5000")))
+    frontend_port = int(local_env.get("VITE_PORT", "3000"))
 
-    backend_proc = start_process(["npm", "run", "dev"], BACKEND_DIR, env=backend_env)
-    frontend_proc = start_process(["npm", "run", "dev", "--", "--mode", "local"], CLIENT_DIR, env=frontend_env)
+    free_port(backend_port, "Backend")
+    free_port(frontend_port, "Frontend")
+
+    backend_proc = start_process([NPM_COMMAND, "run", "dev"], BACKEND_DIR, env=backend_env)
+    frontend_proc = start_process([NPM_COMMAND, "run", "dev"], CLIENT_DIR, env=frontend_env)
 
     save_pid_state(
         {
@@ -228,11 +287,11 @@ def stop_services(force_cloud: bool, force_local: bool) -> None:
     backend_pid = state.get("backend_pid")
     frontend_pid = state.get("frontend_pid")
     if isinstance(backend_pid, int):
-        stop_pid(backend_pid)
-        Logger.success(f"Stopped backend PID {backend_pid}")
+        if stop_pid(backend_pid):
+            Logger.success(f"Stopped backend PID {backend_pid}")
     if isinstance(frontend_pid, int):
-        stop_pid(frontend_pid)
-        Logger.success(f"Stopped frontend PID {frontend_pid}")
+        if stop_pid(frontend_pid):
+            Logger.success(f"Stopped frontend PID {frontend_pid}")
 
     if mode == "local":
         docker_compose_down()

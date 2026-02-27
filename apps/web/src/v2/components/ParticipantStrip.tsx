@@ -6,6 +6,10 @@ interface ParticipantStripProps {
   connected: boolean;
 }
 
+const getInitials = (name: string) => {
+  return name.substring(0, 2).toUpperCase();
+};
+
 const ParticipantStrip = ({
   participants,
   user,
@@ -14,19 +18,24 @@ const ParticipantStrip = ({
   return (
     <header className="v2-participants">
       <div className="v2-participants-title">
-        <strong>Realtime Board</strong>
         <span className={connected ? "online" : "offline"}>
-          {connected ? "Online" : "Reconnecting"}
+          {connected ? "Live" : "Reconnecting"}
         </span>
       </div>
 
       <div className="v2-participants-list">
         {participants.map((participant) => (
-          <div key={participant.socketId} className="v2-participant-pill">
-            <i style={{ backgroundColor: participant.color }} />
-            <span>
-              {participant.userId === user.id ? `${participant.name} (You)` : participant.name}
-            </span>
+          <div
+            key={participant.socketId}
+            className="v2-participant-pill"
+            style={{ backgroundColor: participant.color }}
+          >
+            {getInitials(participant.name)}
+            <div className="tooltip-label">
+              {participant.userId === user.id
+                ? `${participant.name} (You)`
+                : participant.name}
+            </div>
           </div>
         ))}
       </div>

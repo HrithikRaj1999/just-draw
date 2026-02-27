@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from utils import (
 BACKEND_DIR = PROJECT_ROOT / "apps" / "server"
 CLIENT_DIR = PROJECT_ROOT / "apps" / "web"
 TF_DIR = PROJECT_ROOT / "infra" / "terraform"
+NPM_COMMAND = "npm.cmd" if os.name == "nt" else "npm"
 
 DEFAULT_LOCAL_PROFILE = """ENABLE_CLOUD=false
 BACKEND_PORT=5000
@@ -71,7 +73,7 @@ def setup_node_deps() -> None:
     Logger.header("Installing Dependencies")
     for app_dir in [BACKEND_DIR, CLIENT_DIR]:
         Logger.step(f"npm install in {app_dir.name}")
-        run_command(["npm", "install", "--no-audit", "--no-fund"], cwd=app_dir)
+        run_command([NPM_COMMAND, "install", "--no-audit", "--no-fund"], cwd=app_dir)
     Logger.success("Backend and client dependencies installed.")
 
 
